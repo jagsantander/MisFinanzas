@@ -1,0 +1,24 @@
+# Dependencias y builds
+node_modules/
+.next/
+.next-build/
+dist/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# Secretos y configuración local (NUNCA subir)
+.env
+.env.local
+.env.*.local
+android/keystore/
+android/keystore.properties
+
+# Datos locales
+.local-pg/
+backups/
+*.log
+
+# Herramientas locales
+.claude/
+.DS_Store

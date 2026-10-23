@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Icono monocromo de notificación: letra M -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#FFFFFFFF"
+        android:pathData="M4,20V4h3.2L12,11.2L16.8,4H20v16h-3.2V9.4L12,16.6L7.2,9.4V20Z" />
+</vector>

@@ -1,0 +1,377 @@
+<title>Instalar MisFinanzas</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: columna de lectura con pestañas por sistema; cada paso es una fila numerada (la secuencia sí importa). */
+:root {
+  --bg: #faf8f4;
+  --surface: #ffffff;
+  --surface-2: #f2eee6;
+  --ink: #0f1b3d;
+  --muted: #5a6680;
+  --line: #e7e1d6;
+  --petrol: #0f7d70;
+  --petrol-ink: #0a5f55;
+  --petrol-soft: #e1f2ee;
+  --amber-soft: #fff1d6;
+  --amber-ink: #8a5208;
+  --coral-ink: #b8392a;
+  --on-petrol: #ffffff;
+  --shadow: 0 1px 2px rgba(15,27,61,.05), 0 8px 24px rgba(15,27,61,.06);
+  --display: "Plus Jakarta Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --body: "Plus Jakarta Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1315; --surface: #151e21; --surface-2: #1c272b; --ink: #e9eff2; --muted: #9fb0ba; --line: #26343a;
+    --petrol: #3cbfae; --petrol-ink: #6ad6c8; --petrol-soft: #133632; --amber-soft: #3a2c10; --amber-ink: #f5b84a; --coral-ink: #ff8a7a;
+    --on-petrol: #06201d; --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1315; --surface: #151e21; --surface-2: #1c272b; --ink: #e9eff2; --muted: #9fb0ba; --line: #26343a;
+  --petrol: #3cbfae; --petrol-ink: #6ad6c8; --petrol-soft: #133632; --amber-soft: #3a2c10; --amber-ink: #f5b84a; --coral-ink: #ff8a7a;
+  --on-petrol: #06201d; --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 16px; line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap {
+  max-width: 760px; margin: 0 auto;
+  padding-block: 32px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 28px;
+}
+a { color: var(--petrol-ink); text-underline-offset: 3px; }
+:focus-visible { outline: 3px solid color-mix(in srgb, var(--petrol) 55%, transparent); outline-offset: 2px; border-radius: 6px; }
+
+/* Encabezado */
+.brand { display: flex; align-items: center; gap: 12px; font-family: var(--display); font-weight: 800; font-size: 22px; letter-spacing: -.4px; }
+.brand b { color: var(--petrol); font-weight: 800; }
+.logo { width: 40px; height: 40px; border-radius: 11px; background: linear-gradient(135deg, #0f7d70, #0a5f55); display: grid; place-items: center; flex: none; }
+.logo svg { width: 22px; height: 22px; }
+header { display: flex; flex-direction: column; gap: 14px; }
+h1 { font-family: var(--display); font-size: clamp(30px, 6vw, 42px); line-height: 1.08; letter-spacing: -1px; margin: 0; text-wrap: balance; font-weight: 800; }
+.lede { color: var(--muted); font-size: 18px; margin: 0; max-width: 62ch; }
+
+/* Tarjeta de URL */
+.url-card { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 18px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 10px; }
+.url-card label { font-weight: 700; font-size: 15px; }
+.url-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.url-row input {
+  flex: 1 1 260px; min-width: 0; min-height: 48px; border: 1.5px solid var(--line); border-radius: 12px; padding: 10px 14px;
+  font: 500 16px var(--mono); background: var(--bg); color: var(--ink);
+}
+.url-row input:focus { border-color: var(--petrol); outline: none; box-shadow: 0 0 0 3px var(--petrol-soft); }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 0 20px; border-radius: 999px;
+  border: 0; background: var(--petrol); color: var(--on-petrol); font: 700 15px var(--body); text-decoration: none; cursor: pointer; white-space: nowrap;
+}
+.btn[aria-disabled="true"] { opacity: .5; pointer-events: none; }
+.hint { color: var(--muted); font-size: 14px; margin: 0; }
+.note { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border-radius: 12px; background: var(--amber-soft); color: var(--ink); font-size: 14px; }
+.note svg { flex: none; width: 20px; height: 20px; color: var(--amber-ink); margin-top: 1px; }
+.note p { margin: 0; }
+
+/* Pestañas */
+.tabs { display: flex; gap: 6px; background: var(--surface-2); padding: 5px; border-radius: 999px; overflow-x: auto; scrollbar-width: none; }
+.tab {
+  flex: 1 0 auto; min-height: 42px; padding: 0 16px; border: 0; border-radius: 999px; background: transparent; color: var(--muted);
+  font: 600 15px var(--body); cursor: pointer; white-space: nowrap;
+}
+.tab[aria-selected="true"] { background: var(--petrol); color: var(--on-petrol); box-shadow: var(--shadow); }
+.detected { font-size: 13px; color: var(--muted); margin: -16px 0 0; }
+
+/* Paneles y pasos */
+.panel { display: flex; flex-direction: column; gap: 22px; }
+.browser { display: flex; flex-direction: column; gap: 12px; }
+.browser h2 { font-family: var(--display); font-size: 21px; letter-spacing: -.3px; margin: 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pill { font: 700 12px var(--body); letter-spacing: .3px; text-transform: uppercase; padding: 4px 10px; border-radius: 999px; background: var(--petrol-soft); color: var(--petrol-ink); }
+.pill.warn { background: var(--amber-soft); color: var(--amber-ink); }
+ol.steps { list-style: none; margin: 0; padding: 0; counter-reset: s; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; overflow: hidden; }
+ol.steps > li { counter-increment: s; display: grid; grid-template-columns: 34px 1fr; gap: 14px; padding: 16px 18px; align-items: start; }
+ol.steps > li + li { border-top: 1px solid var(--line); }
+ol.steps > li::before {
+  content: counter(s); width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--petrol-soft); color: var(--petrol-ink); font: 800 14px var(--display); font-variant-numeric: tabular-nums;
+}
+ol.steps > li > div { min-width: 0; }
+.steps p { margin: 0; }
+.steps .sub { color: var(--muted); font-size: 14px; margin-top: 4px; }
+kbd, .ui {
+  font: 600 13.5px var(--body); background: var(--surface-2); border: 1px solid var(--line); border-bottom-width: 2px;
+  padding: 1px 7px; border-radius: 6px; white-space: nowrap; color: var(--ink);
+}
+.ui { border-bottom-width: 1px; }
+code.addr { font: 500 14px var(--mono); background: var(--surface-2); padding: 1px 6px; border-radius: 6px; word-break: break-all; }
+
+/* Mini barra de direcciones ilustrativa */
+.omnibox { margin-top: 10px; display: flex; align-items: center; gap: 8px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 6px 8px 6px 14px; max-width: 420px; }
+.omnibox .lock { width: 14px; height: 14px; color: var(--muted); flex: none; }
+.omnibox .host { font: 500 13px var(--mono); color: var(--muted); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.omnibox .install { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--petrol-soft); color: var(--petrol-ink); outline: 2px solid var(--petrol); outline-offset: 1px; flex: none; }
+.omnibox .install svg { width: 16px; height: 16px; }
+.cap { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+/* Sección común */
+section.after { display: flex; flex-direction: column; gap: 12px; }
+section.after h2 { font-family: var(--display); font-size: 22px; letter-spacing: -.3px; margin: 0; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.tile { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.tile h3 { margin: 0; font-size: 16px; font-weight: 700; }
+.tile p { margin: 0; color: var(--muted); font-size: 14.5px; }
+
+table.compare { width: 100%; border-collapse: collapse; font-size: 14.5px; background: var(--surface); border-radius: 16px; overflow: hidden; border: 1px solid var(--line); }
+.compare th, .compare td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.compare tr:last-child td { border-bottom: 0; }
+.compare th { background: var(--surface-2); font-size: 12px; text-transform: uppercase; letter-spacing: .4px; color: var(--muted); }
+.table-wrap { overflow-x: auto; border-radius: 16px; }
+footer { color: var(--muted); font-size: 13.5px; border-top: 1px solid var(--line); padding-top: 16px; }
+@media (prefers-reduced-motion: no-preference) { .panel { animation: in .18s ease-out; } @keyframes in { from { opacity: .4; transform: translateY(4px); } } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24"><path fill="#fff" d="M4 20V4h3.2L12 11.2 16.8 4H20v16h-3.2V9.4L12 16.6 7.2 9.4V20Z"/></svg></span>
+      <span>Mis<b>Finanzas</b></span>
+    </div>
+    <h1>Instala MisFinanzas en tu computador</h1>
+    <p class="lede">MisFinanzas se instala desde el navegador, sin descargar programas. Queda como una app más: con su propio ícono y su propia ventana, y se actualiza sola.</p>
+  </header>
+
+  <div class="url-card">
+    <label for="appUrl">Dirección de tu MisFinanzas</label>
+    <div class="url-row">
+      <input id="appUrl" type="url" inputmode="url" spellcheck="false" autocomplete="url" placeholder="https://misfinanzas.tudominio.cl" aria-describedby="urlHint">
+      <a id="openBtn" class="btn" href="#" target="_blank" rel="noopener" aria-disabled="true">Abrir MisFinanzas
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg></a>
+    </div>
+    <p id="urlHint" class="hint">Escríbela una vez: los pasos de abajo la usan. Solo se guarda en este navegador.</p>
+    <div class="note" id="notDeployed">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+      <p>Necesitas que MisFinanzas esté publicada en una dirección <strong>https://</strong>. Una dirección <code class="addr">http://</code> sin candado no se puede instalar.</p>
+    </div>
+  </div>
+
+  <div class="tabs" role="tablist" aria-label="Sistema operativo">
+    <button class="tab" role="tab" id="t-windows" aria-controls="windows" aria-selected="false">Windows</button>
+    <button class="tab" role="tab" id="t-mac" aria-controls="mac" aria-selected="false">Mac</button>
+    <button class="tab" role="tab" id="t-linux" aria-controls="linux" aria-selected="false">Linux y Chromebook</button>
+    <button class="tab" role="tab" id="t-android" aria-controls="android" aria-selected="false">Android</button>
+  </div>
+  <p class="detected" id="detected" aria-live="polite"></p>
+
+  <!-- WINDOWS -->
+  <div class="panel" role="tabpanel" id="windows" aria-labelledby="t-windows" hidden>
+    <div class="browser">
+      <h2>Con Microsoft Edge <span class="pill">Viene con Windows</span></h2>
+      <ol class="steps">
+        <li><div><p>Abre <code class="addr" data-url>tu dirección de MisFinanzas</code> en Edge.</p></div></li>
+        <li><div>
+          <p>En la barra de direcciones, haz clic en el ícono <span class="ui">Aplicación disponible. Instalar MisFinanzas</span>.</p>
+          <div class="omnibox" aria-hidden="true"><svg class="lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4"/></svg><span class="host" data-host>misfinanzas.tudominio.cl</span><span class="install"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H4zM8 20h8M12 8v5M9.5 10.5 12 13l2.5-2.5"/></svg></span></div>
+          <p class="cap">El ícono aparece a la derecha de la dirección.</p>
+          <p class="sub">Si no lo ves: menú <kbd>···</kbd> → <span class="ui">Aplicaciones</span> → <span class="ui">Instalar MisFinanzas</span>.</p>
+        </div></li>
+        <li><div><p>Confirma con <span class="ui">Instalar</span>. Edge te ofrecerá anclarla a la barra de tareas y al menú Inicio.</p></div></li>
+      </ol>
+    </div>
+    <div class="browser">
+      <h2>Con Google Chrome</h2>
+      <ol class="steps">
+        <li><div><p>Abre <code class="addr" data-url>tu dirección de MisFinanzas</code> en Chrome.</p></div></li>
+        <li><div>
+          <p>Haz clic en el ícono de instalar <span class="ui">Instalar MisFinanzas</span> al final de la barra de direcciones.</p>
+          <p class="sub">Si no aparece: menú <kbd>⋮</kbd> → <span class="ui">Transmitir, guardar y compartir</span> → <span class="ui">Instalar página como app…</span></p>
+        </div></li>
+        <li><div><p>Pulsa <span class="ui">Instalar</span>. Para anclarla, haz clic derecho en su ícono de la barra de tareas → <span class="ui">Anclar a la barra de tareas</span>.</p></div></li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- MAC -->
+  <div class="panel" role="tabpanel" id="mac" aria-labelledby="t-mac" hidden>
+    <div class="browser">
+      <h2>Con Safari <span class="pill">macOS Sonoma 14 o posterior</span></h2>
+      <ol class="steps">
+        <li><div><p>Abre <code class="addr" data-url>tu dirección de MisFinanzas</code> en Safari.</p></div></li>
+        <li><div><p>En la barra de menús elige <span class="ui">Archivo</span> → <span class="ui">Agregar al Dock…</span></p>
+          <p class="sub">También desde el botón Compartir de la barra de herramientas → <span class="ui">Agregar al Dock</span>.</p></div></li>
+        <li><div><p>Revisa el nombre «MisFinanzas» y pulsa <span class="ui">Agregar</span>. Queda en el Dock y en la carpeta Aplicaciones de tu usuario.</p></div></li>
+      </ol>
+    </div>
+    <div class="browser">
+      <h2>Con Google Chrome o Microsoft Edge</h2>
+      <ol class="steps">
+        <li><div><p>Abre <code class="addr" data-url>tu dirección de MisFinanzas</code>.</p></div></li>
+        <li><div><p>Haz clic en el ícono <span class="ui">Instalar MisFinanzas</span> a la derecha de la barra de direcciones.</p>
+          <p class="sub">Chrome: menú <kbd>⋮</kbd> → <span class="ui">Transmitir, guardar y compartir</span> → <span class="ui">Instalar página como app…</span> · Edge: <kbd>···</kbd> → <span class="ui">Aplicaciones</span> → <span class="ui">Instalar MisFinanzas</span></p></div></li>
+        <li><div><p>Pulsa <span class="ui">Instalar</span>. Para dejarla fija, haz clic derecho en su ícono del Dock → <span class="ui">Opciones</span> → <span class="ui">Mantener en el Dock</span>.</p></div></li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- LINUX / CHROMEBOOK -->
+  <div class="panel" role="tabpanel" id="linux" aria-labelledby="t-linux" hidden>
+    <div class="browser">
+      <h2>Con Google Chrome, Chromium o Edge</h2>
+      <ol class="steps">
+        <li><div><p>Abre <code class="addr" data-url>tu dirección de MisFinanzas</code>.</p></div></li>
+        <li><div><p>Haz clic en el ícono <span class="ui">Instalar MisFinanzas</span> de la barra de direcciones, o en el menú <kbd>⋮</kbd> → <span class="ui">Transmitir, guardar y compartir</span> → <span class="ui">Instalar página como app…</span></p></div></li>
+        <li><div><p>Pulsa <span class="ui">Instalar</span>. En Chromebook queda en el selector de apps y puedes fijarla en la estantería. En Linux se crea un acceso directo en el menú de aplicaciones.</p></div></li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- ANDROID -->
+  <div class="panel" role="tabpanel" id="android" aria-labelledby="t-android" hidden>
+    <div class="browser">
+      <h2>Con el archivo APK <span class="pill">Android 7.0 o posterior</span></h2>
+      <ol class="steps">
+        <li><div><p>Pasa el archivo <code class="addr">MisFinanzas-1.0.1.apk</code> al teléfono: por correo, Google Drive o cable USB a la carpeta Descargas.</p></div></li>
+        <li><div><p>Tócalo para abrirlo. Si Android lo bloquea, entra en <span class="ui">Configuración</span>, activa <span class="ui">Permitir de esta fuente</span> y vuelve.</p></div></li>
+        <li><div><p>Toca <span class="ui">Instalar</span>. Si Play Protect avisa que el desarrollador es desconocido, elige <span class="ui">Más detalles</span> → <span class="ui">Instalar de todas formas</span>. Esto es solo porque la app no está publicada en Google Play.</p></div></li>
+        <li><div><p>Después, desactiva ese permiso en <span class="ui">Ajustes</span> → <span class="ui">Apps</span> → <span class="ui">Acceso especial</span> → <span class="ui">Instalar apps desconocidas</span>.</p></div></li>
+      </ol>
+    </div>
+    <div class="browser">
+      <h2>Sin APK, desde Chrome</h2>
+      <ol class="steps">
+        <li><div><p>Abre <code class="addr" data-url>tu dirección de MisFinanzas</code> en Chrome para Android.</p></div></li>
+        <li><div><p>Menú <kbd>⋮</kbd> → <span class="ui">Agregar a la pantalla principal</span> → <span class="ui">Instalar</span>.</p></div></li>
+      </ol>
+    </div>
+  </div>
+
+  <section class="after" aria-labelledby="h-after">
+    <h2 id="h-after">Después de instalar</h2>
+    <div class="grid">
+      <div class="tile"><h3>Entra con passkey</h3><p>En Perfil → Passkeys y bloqueo puedes registrar Windows Hello, Touch ID o la llave de tu teléfono para entrar sin contraseña.</p></div>
+      <div class="tile"><h3>Activa los avisos</h3><p>En Perfil → Notificaciones, enciende «Push». El sistema te pedirá permiso una sola vez. En Mac, revisa Ajustes del Sistema → Notificaciones.</p></div>
+      <div class="tile"><h3>Actualizaciones</h3><p>No hay nada que descargar: cada vez que abres la app, se carga la versión más reciente.</p></div>
+      <div class="tile"><h3>Computador compartido</h3><p>Activa el bloqueo por inactividad en Perfil → Seguridad y usa «Cerrar sesión» al terminar.</p></div>
+    </div>
+  </section>
+
+  <section class="after" aria-labelledby="h-safe">
+    <h2 id="h-safe">Instala solo la versión original</h2>
+    <div class="grid">
+      <div class="tile"><h3>Revisa la dirección</h3><p>Antes de instalar, comprueba que la barra muestre el candado y exactamente <code class="addr" data-host>tu dominio</code>. Si un correo te pide «instalar MisFinanzas» desde otro enlace, no lo hagas.</p></div>
+      <div class="tile"><h3>Nada que ejecutar</h3><p>En computador no existe un instalador .exe ni .dmg de MisFinanzas. Si alguien te envía uno, no es nuestro.</p></div>
+    </div>
+  </section>
+
+  <section class="after" aria-labelledby="h-remove">
+    <h2 id="h-remove">Desinstalar</h2>
+    <div class="table-wrap">
+      <table class="compare">
+        <thead><tr><th scope="col">Dónde</th><th scope="col">Cómo</th></tr></thead>
+        <tbody>
+          <tr><td>Edge o Chrome</td><td>Abre la app → menú <kbd>···</kbd> de la ventana → <span class="ui">Desinstalar MisFinanzas</span>. También desde <code class="addr">edge://apps</code> o <code class="addr">chrome://apps</code>.</td></tr>
+          <tr><td>Safari (Mac)</td><td>Arrastra «MisFinanzas» desde la carpeta Aplicaciones de tu usuario a la Papelera.</td></tr>
+          <tr><td>Android</td><td>Mantén presionado el ícono → <span class="ui">Desinstalar</span>.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="hint">Desinstalar la app no borra tus datos: siguen en tu cuenta. Para eliminarlos, ve a Perfil → Tus datos.</p>
+  </section>
+
+  <section class="after" aria-labelledby="h-browsers">
+    <h2 id="h-browsers">Navegadores compatibles</h2>
+    <div class="table-wrap">
+      <table class="compare">
+        <thead><tr><th scope="col">Navegador</th><th scope="col">Instalar</th><th scope="col">Passkeys</th><th scope="col">Avisos push</th></tr></thead>
+        <tbody>
+          <tr><td>Microsoft Edge</td><td>Sí</td><td>Sí</td><td>Sí</td></tr>
+          <tr><td>Google Chrome</td><td>Sí</td><td>Sí</td><td>Sí</td></tr>
+          <tr><td>Safari (macOS 14+)</td><td>Sí, «Agregar al Dock»</td><td>Sí</td><td>Sí</td></tr>
+          <tr><td>Firefox</td><td>No: úsala como página web normal</td><td>Sí</td><td>Sí</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>Los nombres de los menús pueden variar un poco según la versión de tu navegador.</footer>
+</div>
+
+<script>
+(function () {
+  var KEY = "mf-install-url";
+  var input = document.getElementById("appUrl");
+  var openBtn = document.getElementById("openBtn");
+  var note = document.getElementById("notDeployed");
+
+  function load() { try { return localStorage.getItem(KEY) || ""; } catch (e) { return ""; } }
+  function save(v) { try { localStorage.setItem(KEY, v); } catch (e) {} }
+
+  function parse(v) {
+    v = (v || "").trim();
+    if (!v) return null;
+    if (!/^[a-z]+:\/\//i.test(v)) v = "https://" + v;
+    try { var u = new URL(v); return u.protocol === "https:" ? u : { insecure: true, host: u.host }; } catch (e) { return null; }
+  }
+
+  function render() {
+    var u = parse(input.value);
+    var ok = u && !u.insecure;
+    document.querySelectorAll("[data-url]").forEach(function (el) { el.textContent = ok ? u.origin : "tu dirección de MisFinanzas"; });
+    document.querySelectorAll("[data-host]").forEach(function (el) { el.textContent = ok ? u.host : (el.closest(".omnibox") ? "misfinanzas.tudominio.cl" : "tu dominio"); });
+    openBtn.setAttribute("aria-disabled", ok ? "false" : "true");
+    openBtn.href = ok ? u.origin + "/" : "#";
+    note.hidden = Boolean(ok);
+    note.querySelector("p").innerHTML = u && u.insecure
+      ? "Esa dirección no usa <strong>https://</strong>. Los navegadores solo instalan apps desde direcciones seguras."
+      : noteText;
+  }
+  var noteText = note.querySelector("p").innerHTML;
+  input.value = load();
+  input.addEventListener("input", function () { save(input.value.trim()); render(); });
+  render();
+
+  // Pestañas: hash del enlace > sistema detectado > Windows
+  var tabs = Array.prototype.slice.call(document.querySelectorAll(".tab"));
+  var names = { windows: "Windows", mac: "Mac", linux: "Linux o Chromebook", android: "Android" };
+  function select(id, focus) {
+    tabs.forEach(function (t) {
+      var on = t.getAttribute("aria-controls") === id;
+      t.setAttribute("aria-selected", on ? "true" : "false");
+      t.tabIndex = on ? 0 : -1;
+      document.getElementById(t.getAttribute("aria-controls")).hidden = !on;
+      if (on && focus) t.focus();
+    });
+  }
+  function detect() {
+    var ua = navigator.userAgent || "";
+    if (/Android/i.test(ua)) return "android";
+    if (/CrOS|Linux/i.test(ua) && !/Android/i.test(ua)) return "linux";
+    if (/Macintosh|Mac OS X/i.test(ua) && !/iPhone|iPad/i.test(ua)) return "mac";
+    if (/Windows/i.test(ua)) return "windows";
+    return null;
+  }
+  var fromHash = (location.hash || "").replace("#", "");
+  var det = detect();
+  var start = names[fromHash] ? fromHash : (det || "windows");
+  if (det && !names[fromHash]) document.getElementById("detected").textContent = "Detectamos " + names[det] + ". Puedes cambiar de pestaña.";
+  select(start, false);
+  tabs.forEach(function (t, i) {
+    t.addEventListener("click", function () { select(t.getAttribute("aria-controls"), false); });
+    t.addEventListener("keydown", function (e) {
+      var d = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+      if (!d) return;
+      e.preventDefault();
+      var n = tabs[(i + d + tabs.length) % tabs.length];
+      select(n.getAttribute("aria-controls"), true);
+    });
+  });
+})();
+</script>
