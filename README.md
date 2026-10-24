@@ -218,6 +218,24 @@ La app lista los modelos disponibles para cada clave. Los costos mostrados son *
 
 La automatización **no** depende del navegador: corre en el worker aunque el teléfono esté apagado. Si usas una plataforma *serverless* sin procesos persistentes, reemplaza el worker por un cron cada minuto que ejecute el ciclo `tick` y procese la cola. No uses temporizadores del navegador.
 
+### Railway (recomendado)
+
+Un proyecto con tres servicios, todos desde este repositorio salvo la base de datos:
+
+| Servicio | Origen | Start command | Otros ajustes |
+|---|---|---|---|
+| **Postgres** | Plantilla de base de datos de Railway | — | — |
+| **web** | Este repositorio | `npm start` | Pre-deploy command: `npm run db:migrate:prod`. Healthcheck path: `/api/health`. Dominio público: *Generate Domain*. |
+| **worker** | Este repositorio | `npm run start:worker` | Sin dominio público. Restart policy: *Always*. |
+
+En cada servicio, las variables se pegan en *Variables → Raw Editor*. La lista completa está en `.env.example`.
+
+- `DATABASE_URL=${{Postgres.DATABASE_URL}}`.
+- `APP_URL`:
+  - en web: `https://${{RAILWAY_PUBLIC_DOMAIN}}`;
+  - en el worker: `https://${{web.RAILWAY_PUBLIC_DOMAIN}}`.
+- `ENCRYPTION_KEY`, `SESSION_SECRET` y las claves VAPID deben ser **idénticas** en web y worker.
+
 ### Costos de operación (orientativos)
 
 | Componente | Opción típica | Costo aproximado |
