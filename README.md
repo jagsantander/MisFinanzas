@@ -75,12 +75,12 @@ Publicada en: **https://jagsantander.github.io/MisFinanzas/**
 ## Uso (para cada persona)
 
 1. Abre la app y sigue la bienvenida.
-2. **Crea tu planilla.** La app te guía y tiene botones para copiar el código:
-   1. Crea una planilla en sheets.new y abre Extensiones → Apps Script.
-   2. Pega `Code.gs` y el manifiesto `appsscript.json`.
-   3. Ejecuta `instalar` y autoriza los permisos. Verás «Google no verificó esta app» porque el script es tuyo y no está publicado.
-   4. Implementa la «Aplicación web» con «Ejecutar como: Yo» y «Quién tiene acceso: Cualquier usuario».
-   5. Copia la URL y el token (menú Mi saldo → Mostrar datos de conexión).
+2. **Crea tu planilla** desde la plantilla, sin pegar código:
+   1. En la app pulsa **Crear mi planilla** → **Hacer una copia** (la copia trae el script).
+   2. En la copia: menú **Mi saldo → Conectar con la app** y acepta los permisos. Verás «Google no verificó esta app» porque el script es tuyo y no está publicado.
+   3. Solo la primera vez, la planilla explica cómo implementar la «Aplicación web» (Ejecutar como: Yo · Acceso: Cualquier usuario).
+   4. Vuelve a **Mi saldo → Conectar con la app** y pulsa **Abrir Mi saldo y conectar**: la app muestra la cuenta y pide confirmar.
+   En otro dispositivo, pega el **código de conexión** (`MS1.…`) que muestra el mismo menú. Si no hay plantilla, la app explica cómo crear la planilla a mano pegando `Code.gs` y `appsscript.json`.
 3. Elige la modalidad nocturna y autoriza Gmail:
    - **Google (gratis):** el permiso de Gmail (solo lectura) se otorga al ejecutar `instalar`; la app lo comprueba con «Probar acceso a Gmail». La IA puede ser una clave gratuita de Gemini.
    - **Claude:** requiere Claude Pro o superior (la cuenta gratuita no permite tareas programadas). Gmail se autoriza en el conector de claude.ai.
@@ -133,7 +133,7 @@ Para probar `out/` localmente en http://localhost:4000/MisFinanzas/:
 node scripts/serve-pages.mjs
 ```
 
-**Pruebas (34)**
+**Pruebas (36)**
 
 - **Del script** (`tests/apps-script/`): ejecutan el `Code.gs` real sobre un simulador de los servicios de Google (hojas, propiedades, disparadores, Gmail, UrlFetch y correo). Cubren:
   - instalación y tokens;
@@ -152,8 +152,20 @@ node scripts/serve-pages.mjs
   - alertas sin duplicar;
   - el horario de Santiago con cambio de horario;
   - qué correos se leen: bancos desmarcados, remitentes propios, «solo estos remitentes» y etiqueta de Gmail;
-  - la foto de boleta: la imagen va a la IA del usuario, el total se valida y lo dudoso se marca para revisar.
+  - la foto de boleta: la imagen va a la IA del usuario, el total se valida y lo dudoso se marca para revisar;
+  - el código de conexión (el del script lo entiende la app y solo acepta direcciones de Apps Script) y que una copia de la planilla no herede tokens ni claves.
 - **De la app** (`tests/`): dinero exacto, reglas, totales, período mensual, CSV, validación de la URL del script, panel, alertas, correcciones bloqueadas, reclasificación masiva con vista previa y deshacer.
+
+### Plantilla de la planilla (dueño de la app)
+
+El botón «Crear mi planilla» abre el enlace de copia de una planilla plantilla, definido en `lib/config.ts` (`SHEET_TEMPLATE_COPY_URL`). Para crearla o actualizarla:
+
+1. Crea una planilla vacía llamada «Mi saldo» y, en Extensiones → Apps Script, pega `Code.gs` y `appsscript.json`. **No ejecutes nada en la plantilla.**
+2. Compártela como «Cualquier persona con el enlace: Lector».
+3. Usa `https://docs.google.com/spreadsheets/d/<ID>/copy` como `SHEET_TEMPLATE_COPY_URL`.
+4. Cuando cambie `Code.gs`, pégalo también en la plantilla. Las copias existentes se actualizan con el aviso «Actualiza el script» de la app.
+
+Aunque alguien ejecute el script en la plantilla, cada copia detecta que es otra planilla (`SHEET_ID`) y descarta tokens, clave de IA y configuración heredados.
 
 ### Publicar
 

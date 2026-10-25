@@ -51,6 +51,7 @@ export function createGoogle(opts: { email?: string; now?: () => Date } = {}) {
   const fetches: { url: string; params: any }[] = [];
   let fetchHandler: (url: string, params: any) => { code: number; body: unknown } = () => ({ code: 500, body: { error: "sin simulación" } });
   let ids = 0;
+  const sheetId = { value: "planilla-1" };
 
   const fmt = (date: Date, tz: string, pattern: string) => {
     const p = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
@@ -63,6 +64,7 @@ export function createGoogle(opts: { email?: string; now?: () => Date } = {}) {
     Logger: { log: () => {} },
     SpreadsheetApp: {
       getActiveSpreadsheet: () => ({
+        getId: () => sheetId.value,
         getSheetByName: (n: string) => sheets.get(n) ?? null,
         insertSheet: (n: string) => { const s = new FakeSheet(n); sheets.set(n, s); return s; },
         getSheets: () => [...sheets.values()],
@@ -83,11 +85,13 @@ export function createGoogle(opts: { email?: string; now?: () => Date } = {}) {
       formatDate: fmt,
       sleep: () => {},
       DigestAlgorithm: { SHA_256: "sha256" }, Charset: { UTF_8: "utf8" },
+      base64EncodeWebSafe: (s: string) => Buffer.from(s, "utf8").toString("base64url") + "=".repeat((4 - (Buffer.from(s, "utf8").toString("base64url").length % 4)) % 4),
       computeDigest: (_a: string, s: string) => [...createHash("sha256").update(s, "utf8").digest()].map((b) => (b > 127 ? b - 256 : b)),
     },
     ContentService: { MimeType: { JSON: "json" }, createTextOutput: (s: string) => ({ content: s, setMimeType() { return this; } }) },
     ScriptApp: {
-      getService: () => ({ getUrl: () => "https://script.google.com/macros/s/PRUEBA/exec" }),
+      getService: () => ({ getUrl: () => "https://script.google.com/macros/s/PRUEBA_DE_SCRIPT_0123456789/exec" }),
+      getScriptId: () => "script-1",
       getProjectTriggers: () => triggers.map((t) => ({ getUniqueId: () => t.id, getHandlerFunction: () => t.fn, spec: t.spec })),
       deleteTrigger: (t: { getUniqueId: () => string }) => { const i = triggers.findIndex((x) => x.id === t.getUniqueId()); if (i >= 0) triggers.splice(i, 1); },
       newTrigger: (fn: string) => {
@@ -126,7 +130,7 @@ export function createGoogle(opts: { email?: string; now?: () => Date } = {}) {
   /** Simula una llamada HTTP POST a la aplicación web. */
   const post = (body: unknown) => JSON.parse(g.doPost({ postData: { contents: JSON.stringify(body) } }).content);
   return {
-    g, post, sheets, props, triggers, mailbox, sentMail, fetches,
+    g, post, sheets, props, sheetId, triggers, mailbox, sentMail, fetches,
     onFetch: (h: typeof fetchHandler) => { fetchHandler = h; },
     appToken: () => props.get("APP_TOKEN")!, importToken: () => props.get("IMPORT_TOKEN")!,
   };

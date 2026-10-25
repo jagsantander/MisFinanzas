@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useStore, withBase } from "@/lib/client";
 import { initStore } from "@/lib/local/store";
+import { captureConnectionHash } from "@/lib/local/script";
 import type { Settings } from "@/lib/local/types";
 import { Icon } from "./Icon";
 import { Loading, Notice, ToastProvider } from "./ui";
@@ -42,7 +43,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const st = useStore();
   const [locked, setLocked] = useState<boolean | null>(null);
 
-  useEffect(() => { void initStore(); }, []);
+  useEffect(() => { captureConnectionHash(); void initStore(); }, []);
   useEffect(() => { applyTheme(localTheme()); }, []);
   useEffect(() => {
     if (st.loaded && !st.settings.onboardingDone && !path.startsWith("/bienvenida")) router.replace("/bienvenida");

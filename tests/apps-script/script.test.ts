@@ -367,3 +367,27 @@ describe("foto de boleta", () => {
     expect(app("scanReceipt", { image: IMG, mimeType: "image/jpeg" })).toMatchObject({ ok: false, error: expect.stringMatching(/IA/) });
   });
 });
+
+describe("conexión simplificada", () => {
+  it("el código de conexión del script lo entiende la app", async () => {
+    const { parseConnectionCode } = await import("../../lib/local/script");
+    const code = G.g.connectionCode_(G.g.webAppUrl_(), G.appToken());
+    expect(code).toMatch(/^MS1\.[A-Za-z0-9_-]+$/);
+    expect(parseConnectionCode(code)).toEqual({ url: "https://script.google.com/macros/s/PRUEBA_DE_SCRIPT_0123456789/exec", token: G.appToken() });
+    expect(parseConnectionCode(code.slice(0, -4))).toBeNull();
+    const other = G.g.connectionCode_("https://evil.example.com/exec", G.appToken());
+    expect(parseConnectionCode(other)).toBeNull(); // solo direcciones de Apps Script
+  });
+
+  it("una copia de la planilla no hereda tokens ni la clave de IA del original", () => {
+    const before = G.appToken();
+    G.props.set("AI_KEY", "AIzaDELORIGINAL000000000000000000000");
+    G.g.instalar();
+    expect(G.appToken()).toBe(before); // misma planilla: nada cambia
+    G.sheetId.value = "planilla-copia";
+    G.g.instalar();
+    expect(G.appToken()).not.toBe(before);
+    expect(G.props.get("AI_KEY")).toBeUndefined();
+    expect(G.props.get("SHEET_ID")).toBe("planilla-copia");
+  });
+});
