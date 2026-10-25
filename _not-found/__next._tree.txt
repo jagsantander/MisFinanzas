@@ -1,4 +1,4 @@
 :HL["/MisFinanzas/_next/static/chunks/3ph4ox--_3rdv.css","style"]
 2:[["children",{"s":"__PAGE__","h":160}]]
 1:[["children",{"s":"/_not-found","h":96,"c":"$Q2"}]]
-0:{"b":"NefGJ3-k-6MZxN25VQLYI","t":{"t":{"s":"","h":80,"c":"$Q1"}}}
+0:{"b":"lqj8oLo6SbuEfti3O4JL0","t":{"t":{"s":"","h":80,"c":"$Q1"}}}

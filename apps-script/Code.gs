@@ -11,7 +11,9 @@
  * Los datos quedan en las hojas de esta planilla. Mi saldo no tiene servidor propio.
  */
 
-var MF_VERSION = '2.1.0';
+var MF_VERSION = '2.2.0';
+/** Dirección de la app publicada: el botón «Abrir Mi saldo» lleva ahí el código de conexión. */
+var APP_URL = 'https://jagsantander.github.io/MisFinanzas/';
 var TEMPLATE_VERSION = 'mf-nightly-v2';
 
 var GENERIC_HEADERS = ['Id', 'Actualizado', 'Eliminado', 'Datos'];
@@ -79,6 +81,8 @@ var DEFAULT_CATEGORIES = [
 
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('Mi saldo')
+    .addItem('Conectar con la app', 'conectar')
+    .addSeparator()
     .addItem('Instalar o reparar', 'instalar')
     .addItem('Mostrar datos de conexión', 'mostrarConexion')
     .addItem('Regenerar token de la app', 'regenerarTokenApp')
@@ -87,6 +91,73 @@ function onOpen() {
 
 /** Crea las hojas, las categorías iniciales y los tokens. Se puede ejecutar varias veces sin duplicar nada. */
 function instalar() {
+  instalarDatos_();
+  Logger.log('Mi saldo instalado. Abre el menú Mi saldo → Conectar con la app.');
+  try { mostrarConexion(); } catch (e) { /* ejecutado desde el editor: sin interfaz */ }
+}
+
+/**
+ * Paso único para el usuario: instala, y si el script ya está implementado como aplicación web, muestra el botón
+ * que abre la app ya conectada. Si aún no lo está, explica cómo implementarlo.
+ */
+function conectar() {
+  instalarDatos_();
+  var url = webAppUrl_();
+  if (!url) return mostrarImplementacion_();
+  var code = connectionCode_(url, PropertiesService.getScriptProperties().getProperty('APP_TOKEN'));
+  var link = APP_URL + 'conexiones/#conectar=' + code;
+  var html = HtmlService.createHtmlOutput(
+    '<div style="font-family:sans-serif;font-size:14px;line-height:1.5">' +
+    '<p>Tu planilla está lista. Pulsa el botón para abrir Mi saldo y conectarla:</p>' +
+    '<p><a href="' + esc_(link) + '" target="_blank" rel="noopener" style="display:inline-block;background:#0f7d70;color:#fff;padding:10px 18px;border-radius:10px;text-decoration:none;font-weight:bold">Abrir Mi saldo y conectar</a></p>' +
+    '<p><b>¿Usas Mi saldo en otro dispositivo?</b> Copia este código de conexión y pégalo en Perfil → Tu planilla:</p>' +
+    '<textarea readonly onclick="this.select()" style="width:100%;height:70px;font-family:monospace;font-size:12px">' + esc_(code) + '</textarea>' +
+    '<p style="color:#8a5208">Trátalo como una contraseña: quien lo tenga puede ver tus movimientos.</p></div>'
+  ).setWidth(520).setHeight(340);
+  SpreadsheetApp.getUi().showModalDialog(html, 'Conectar Mi saldo');
+}
+
+function mostrarImplementacion_() {
+  var editor = 'https://script.google.com/d/' + ScriptApp.getScriptId() + '/edit';
+  var html = HtmlService.createHtmlOutput(
+    '<div style="font-family:sans-serif;font-size:14px;line-height:1.5">' +
+    '<p>Falta un último paso, solo esta vez: publicar tu script como <b>aplicación web</b> para que la app pueda hablar con tu planilla.</p><ol>' +
+    '<li><a href="' + esc_(editor) + '" target="_blank" rel="noopener">Abre el editor del script</a>.</li>' +
+    '<li>Arriba a la derecha pulsa <b>Implementar → Nueva implementación</b>.</li>' +
+    '<li>En el engranaje junto a «Seleccionar tipo», elige <b>Aplicación web</b>.</li>' +
+    '<li>«Ejecutar como»: <b>Yo</b>. «Quién tiene acceso»: <b>Cualquier usuario</b>. Pulsa <b>Implementar</b> (si pide autorizar, acepta).</li>' +
+    '<li>Vuelve a esta planilla y usa otra vez <b>Mi saldo → Conectar con la app</b>.</li></ol>' +
+    '<p style="color:#5d6882">«Cualquier usuario» solo permite llegar a la dirección: sin tu código de conexión nadie puede leer ni cambiar tus datos.</p></div>'
+  ).setWidth(520).setHeight(380);
+  SpreadsheetApp.getUi().showModalDialog(html, 'Publica tu script (una vez)');
+}
+
+/** URL de la aplicación web ya implementada (termina en /exec), o null si aún no se implementa. */
+function webAppUrl_() {
+  var u = ScriptApp.getService().getUrl();
+  return u && /\/exec$/.test(u) ? u : null;
+}
+
+/** Código que reúne la URL y el token en un solo texto para pegarlo o abrirlo en la app. */
+function connectionCode_(url, token) {
+  return 'MS1.' + Utilities.base64EncodeWebSafe(JSON.stringify({ u: url, t: token })).replace(/=+$/, '');
+}
+
+/**
+ * Si esta planilla es una copia (por ejemplo, de la plantilla), no hereda tokens, claves ni configuración del original.
+ * La copia de una planilla lleva su script, pero debe tener credenciales propias.
+ */
+function prepararCopia_() {
+  var props = PropertiesService.getScriptProperties();
+  var id = SpreadsheetApp.getActiveSpreadsheet().getId();
+  var prev = props.getProperty('SHEET_ID');
+  if (prev === id) return;
+  if (prev) ['APP_TOKEN', 'IMPORT_TOKEN', 'AI_KEY', 'AUTOMATION', 'SETTINGS', 'USAGE'].forEach(function (k) { props.deleteProperty(k); });
+  props.setProperty('SHEET_ID', id);
+}
+
+function instalarDatos_() {
+  prepararCopia_();
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   Object.keys(TABLES).forEach(function (t) { ensureSheet_(ss, TABLES[t], t === 'movements' ? MOV_HEADERS : GENERIC_HEADERS); });
   ensureSheet_(ss, INSTR_SHEET, INSTR_HEADERS);
@@ -98,20 +169,19 @@ function instalar() {
   if (readTable_('categories').length === 0) seedCategories_();
   var first = ss.getSheetByName('Hoja 1') || ss.getSheetByName('Sheet1');
   if (first && first.getLastRow() === 0 && ss.getSheets().length > 1) ss.deleteSheet(first);
-  Logger.log('Mi saldo instalado. Abre el menú Mi saldo → Mostrar datos de conexión.');
-  try { mostrarConexion(); } catch (e) { /* ejecutado desde el editor: sin interfaz */ }
 }
 
 function mostrarConexion() {
   var props = PropertiesService.getScriptProperties();
-  var url = ScriptApp.getService().getUrl() || '(aún no implementada: Implementar → Nueva implementación → Aplicación web)';
+  var url = webAppUrl_() || '(aún no implementada: usa Mi saldo → Conectar con la app)';
   var html = HtmlService.createHtmlOutput(
     '<div style="font-family:sans-serif;font-size:14px;line-height:1.5">' +
     '<p><b>Dirección del script</b><br><code style="word-break:break-all">' + esc_(url) + '</code></p>' +
     '<p><b>Token de la app</b> (pégalo en Mi saldo → Conectar planilla)<br><code>' + esc_(props.getProperty('APP_TOKEN')) + '</code></p>' +
+    (webAppUrl_() ? '<p><b>Código de conexión</b> (URL y token juntos)<br><code style="word-break:break-all">' + esc_(connectionCode_(webAppUrl_(), props.getProperty('APP_TOKEN'))) + '</code></p>' : '') +
     '<p style="color:#8a5208">Trátalo como una contraseña: quien tenga la dirección y el token puede ver tus movimientos.</p></div>'
-  ).setWidth(520).setHeight(260);
-  SpreadsheetApp.getUi().showModalDialog(html, 'Conectar Mi saldo');
+  ).setWidth(520).setHeight(320);
+  SpreadsheetApp.getUi().showModalDialog(html, 'Datos de conexión');
 }
 
 function regenerarTokenApp() {
