@@ -2,15 +2,15 @@ import { BackLink } from "@/components/BackLink";
 
 export const metadata = { title: "Ayuda" };
 const QA: [string, string][] = [
-  ["¿Dónde están mis datos?", "En una planilla de Google Sheets tuya, con una copia en cada dispositivo donde uses la app. Mi saldo no tiene servidor: ni siquiera nosotros podemos verlos."],
-  ["¿Por qué conectar una planilla de Google?", "Mi saldo no tiene servidor. La planilla es tu respaldo y sincroniza tus dispositivos; además aloja el script que lee Gmail de noche y guarda en privado tu clave de IA. Es opcional: sin ella, los datos quedan solo en este dispositivo."],
+  ["¿Dónde están mis datos?", "En una planilla de Google Sheets tuya, con una copia en cada dispositivo donde uses la app. MiSaldo no tiene servidor: ni siquiera nosotros podemos verlos."],
+  ["¿Por qué conectar una planilla de Google?", "MiSaldo no tiene servidor. La planilla es tu respaldo y sincroniza tus dispositivos; además aloja el script que lee Gmail de noche y guarda en privado tu clave de IA. Es opcional: sin ella, los datos quedan solo en este dispositivo."],
   ["¿Dónde conecto la IA?", "En Inicio → Actualización nocturna → «Tu inteligencia artificial» (aparece después de conectar la planilla). Pega una clave de Gemini, OpenAI o Anthropic. La clave de Gemini es gratuita: créala en aistudio.google.com/apikey."],
   ["¿Qué correos lee?", "Los de los bancos y billeteras que marques, los remitentes que agregues y, si no eliges «solo estos remitentes», los correos cuyo asunto parezca un aviso financiero. También puedes limitarlo a una etiqueta de Gmail. Se configura en Actualización nocturna → «Qué correos leer y cuándo»."],
   ["¿Puedo usar una cuenta gratuita?", "Sí, con la modalidad Google: tu cuenta de Google y una clave gratuita de Gemini. La modalidad Claude necesita Claude Pro o superior, porque la cuenta gratuita de Claude no permite tareas programadas."],
   ["¿Cómo registro una boleta con una foto?", "En «Agregar movimiento» pulsa «Fotografiar boleta». Tu IA lee el total, la fecha, el comercio y sugiere una categoría; revisas los datos y guardas. La foto no se guarda. Requiere la planilla conectada y una clave de IA."],
   ["¿Qué movimientos detecta?", "Solo los que tu banco u otras entidades informan por correo en la cuenta conectada. No es una conciliación bancaria: si un movimiento no genera correo, regístralo a mano."],
   ["¿Cómo funciona la actualización nocturna?", "Elige una de dos modalidades. En la de Google, el script de tu planilla se ejecuta cada noche en tu cuenta de Google, lee Gmail y analiza los avisos con tu clave de IA. En la de Claude, una tarea programada de tu cuenta de Claude lee Gmail con su conector y envía los movimientos a tu planilla. Ninguna necesita la app abierta."],
-  ["¿Cuánto cuesta?", "Mi saldo es gratis. La modalidad Google puede ser gratuita con el nivel gratuito de la API de Gemini; con OpenAI o Anthropic pagas a ese proveedor según tu uso. La modalidad Claude usa tu suscripción Pro o superior."],
+  ["¿Cuánto cuesta?", "MiSaldo es gratis. La modalidad Google puede ser gratuita con el nivel gratuito de la API de Gemini; con OpenAI o Anthropic pagas a ese proveedor según tu uso. La modalidad Claude usa tu suscripción Pro o superior."],
   ["¿Por qué Google dice que la app no está verificada?", "Porque el script es tuyo y no está publicado en Google. Al autorizarlo, le das permisos a tu propio script, no a un tercero."],
   ["¿Los presupuestos bloquean compras?", "No. Son informativos y se calculan con los movimientos registrados; las alertas no son bancarias en tiempo real."],
   ["Corregí una categoría, ¿la sincronización la cambiará?", "No. La actualización nocturna solo agrega movimientos nuevos; nunca sobrescribe tus correcciones."],

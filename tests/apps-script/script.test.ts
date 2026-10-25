@@ -391,3 +391,52 @@ describe("conexión simplificada", () => {
     expect(G.props.get("SHEET_ID")).toBe("planilla-copia");
   });
 });
+
+describe("planilla directa con Google (sin script)", () => {
+  it("la app escribe filas idénticas a las del script, así el script entiende la misma planilla", async () => {
+    const { movementRow, MOV_HEADERS, GENERIC_HEADERS, SHEET_TABLES } = await import("../../lib/google/rows");
+    expect(MOV_HEADERS).toEqual(JSON.parse(JSON.stringify(G.g.MOV_HEADERS)));
+    expect(GENERIC_HEADERS).toEqual(JSON.parse(JSON.stringify(G.g.GENERIC_HEADERS)));
+    const { mails, ...scriptTables } = JSON.parse(JSON.stringify(G.g.TABLES));
+    expect(SHEET_TABLES).toEqual(scriptTables);
+    const cats = { c1: "Alimentación", s1: "Supermercado" };
+    for (const m of [
+      { id: "m1", kind: "expense", status: "review", amountMinor: "62500", currency: "CLP", occurredOn: "2026-10-24", occurredTime: "18:45", description: "Líder", merchant: "LIDER", categoryId: "c1", subcategoryId: "s1", accountMask: "••••1234", bank: "Banco", source: "email", excluded: false, notes: null, operationRef: "777", sourceMessageId: "g1", updatedAt: "2026-10-24T10:00:00.000Z", deletedAt: null },
+      { id: "m2", kind: "income", status: "confirmed", amountMinor: "123456", currency: "USD", occurredOn: "2026-10-01", occurredTime: null, description: "Pago", merchant: null, counterparty: "Cliente", categoryId: null, subcategoryId: null, accountMask: null, source: "manual", excluded: true, notes: "x", updatedAt: "2026-10-02T00:00:00.000Z", deletedAt: "2026-10-03T00:00:00.000Z" },
+    ]) {
+      expect(movementRow(m as any, cats, "2026-10-25T00:00:00.000Z")).toEqual(JSON.parse(JSON.stringify(G.g.movementRow_(m, cats))));
+    }
+  });
+
+  it("sube solo lo más reciente y lee lo que escribió el script", async () => {
+    const { parseTable, planWrites } = await import("../../lib/google/rows");
+    const now = "2026-10-25T00:00:00.000Z";
+    app("push", { changes: [{ table: "rules", record: { id: "r1", name: "viejo", updatedAt: "2026-10-24T10:00:00.000Z" } }] });
+    const parsed = parseTable("rules", G.sheets.get("Reglas")!.rows.slice(1) as unknown[][]);
+    expect(parsed.records).toEqual([{ id: "r1", name: "viejo", updatedAt: "2026-10-24T10:00:00.000Z" }]);
+    const w = planWrites({ rules: parsed.index }, [
+      { table: "rules", record: { id: "r1", name: "más viejo", updatedAt: "2026-10-24T09:00:00.000Z" } },
+      { table: "rules", record: { id: "r2", name: "nuevo", updatedAt: now } },
+      { table: "rules", record: { id: "r2", name: "nuevo 2", updatedAt: now } },
+    ], {}, now);
+    expect(w.updates).toHaveLength(0); // el cambio más antiguo no pisa la planilla
+    expect(w.appends).toHaveLength(1); // un registro repetido se agrega una sola vez, con su última versión
+    expect(JSON.parse(String(w.appends[0].values[3])).name).toBe("nuevo 2");
+    const w2 = planWrites({ rules: parsed.index }, [{ table: "rules", record: { id: "r1", name: "nuevo", updatedAt: now } }], {}, now);
+    expect(w2.updates).toEqual([{ table: "rules", row: 2, values: ["r1", now, "", JSON.stringify({ id: "r1", name: "nuevo", updatedAt: now })] }]);
+  });
+
+  it("la boleta leída en el dispositivo se valida igual que en el script", async () => {
+    const { validateReceipt } = await import("../../lib/ai/receipt");
+    const cats = app("pull").tables.categories as any[];
+    const settings = JSON.parse(G.props.get("SETTINGS")!);
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago" }).format(new Date());
+    for (const raw of [
+      { is_receipt: true, merchant: "LIDER", date: today, time: "18:45", total_text: "$23.990", currency: "CLP", category: "alimentación", subcategory: "Supermercado", description: "Compra", confidence: 0.92 },
+      { is_receipt: false, merchant: null, date: "1999-01-01", time: "99:99", total_text: null, currency: "UF", category: "Inventada", subcategory: null, description: null, confidence: 0.2 },
+      { is_receipt: true, merchant: "Tienda", date: today, time: null, total_text: "US$ 12,50", currency: "USD", category: null, subcategory: null, description: "Cable", confidence: 0.8 },
+    ]) {
+      expect(validateReceipt(raw, settings, cats, today)).toEqual(JSON.parse(JSON.stringify(G.g.validateReceipt_(raw, settings, G.g.readTable_("categories")))));
+    }
+  });
+});

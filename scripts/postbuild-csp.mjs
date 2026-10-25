@@ -22,12 +22,14 @@ for (const file of htmlFiles(OUT)) {
   const styles = [...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map((m) => hash(m[1]));
   const csp = [
     "default-src 'self'",
-    `script-src 'self' ${[...new Set(scripts)].join(" ")}`,
-    `style-src 'self' ${[...new Set(styles)].join(" ")}`,
+    `script-src 'self' https://accounts.google.com/gsi/client ${[...new Set(scripts)].join(" ")}`,
+    `style-src 'self' https://accounts.google.com/gsi/style ${[...new Set(styles)].join(" ")}`,
     "style-src-attr 'unsafe-inline'",
     "img-src 'self' data: blob:",
     "font-src 'self'",
-    "connect-src 'self' https://script.google.com https://script.googleusercontent.com",
+    // Script de la planilla, inicio de sesión con Google, Drive y Sheets (planilla directa) y Gemini (boletas).
+    "connect-src 'self' https://script.google.com https://script.googleusercontent.com https://accounts.google.com https://www.googleapis.com https://sheets.googleapis.com https://generativelanguage.googleapis.com",
+    "frame-src https://accounts.google.com",
     "worker-src 'self'",
     "manifest-src 'self'",
     "object-src 'none'",

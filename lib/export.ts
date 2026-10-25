@@ -30,7 +30,7 @@ export function toCsv(rows: (string | number)[][]): string {
 export async function toXlsx(rows: (string | number)[][]): Promise<ArrayBuffer> {
   const { default: ExcelJS } = await import("exceljs");
   const wb = new ExcelJS.Workbook();
-  wb.creator = "Mi saldo";
+  wb.creator = "MiSaldo";
   const ws = wb.addWorksheet("Movimientos");
   ws.addRow(EXPORT_HEADERS).font = { bold: true };
   for (const r of rows) ws.addRow(r.map((v, i) => (i === 4 ? Number(v) : typeof v === "string" && /^[=+@-]/.test(v) ? "'" + v : v)));

@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useStore } from "@/lib/client";
 import { saveSettings } from "@/lib/local/store";
+import { isScript } from "@/lib/local/types";
 import { BackLink } from "@/components/BackLink";
 import { Notice, Switch, useToast } from "@/components/ui";
 
@@ -16,10 +17,10 @@ export default function NotificationPrefs() {
       <h1 className="title">Avisos</h1>
       <div className="list" style={{ marginTop: 12 }}>
         <div className="item" style={{ cursor: "default" }}><div className="grow"><div className="t">Dentro de la app</div><div className="s">Siempre activo, con historial en Notificaciones.</div></div><Switch checked disabled label="Dentro de la app" onChange={() => {}} /></div>
-        <div className="item" style={{ cursor: "default" }}><div className="grow"><div className="t">Correo electrónico</div><div className="s">{st.connection ? `El script de tu planilla te escribe a ${st.account ?? "tu cuenta de Google"}.` : "Requiere conectar tu planilla."}</div></div>
-          <Switch checked={p.notifyEmail} disabled={!st.connection} label="Correo" onChange={(v) => setP({ ...p, notifyEmail: v })} /></div>
+        <div className="item" style={{ cursor: "default" }}><div className="grow"><div className="t">Correo electrónico</div><div className="s">{isScript(st.connection) ? `El script de tu planilla te escribe a ${st.account ?? "tu cuenta de Google"}.` : "Requiere el script de tu planilla (Actualización nocturna)."}</div></div>
+          <Switch checked={p.notifyEmail} disabled={!isScript(st.connection)} label="Correo" onChange={(v) => setP({ ...p, notifyEmail: v })} /></div>
       </div>
-      <Notice><p className="small">Las notificaciones push del teléfono requieren un servidor que las envíe, y Mi saldo funciona sin servidor. Por eso los avisos llegan por correo y dentro de la app.</p></Notice>
+      <Notice><p className="small">Las notificaciones push del teléfono requieren un servidor que las envíe, y MiSaldo funciona sin servidor. Por eso los avisos llegan por correo y dentro de la app.</p></Notice>
       <h2 className="section">Horario de silencio</h2>
       <div className="card pad">
         <div className="grid2">

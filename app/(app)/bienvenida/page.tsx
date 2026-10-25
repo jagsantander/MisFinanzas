@@ -40,7 +40,7 @@ export default function Welcome() {
   const idx = STEPS.indexOf(step);
   return (
     <main className="page">
-      <div className="brand"><span>Mi <b>saldo</b></span></div>
+      <div className="brand"><span>Mi<b>Saldo</b></span></div>
       <div className="row between" style={{ marginTop: 16 }}>
         <span className="small muted">Paso {idx + 1} de {STEPS.length}</span>
         <button className="link-btn small" onClick={finish}>Omitir y usar manualmente</button>
@@ -78,7 +78,7 @@ function PrefsStep({ onNext }: { onNext: () => void }) {
   const [tz, setTz] = useState(st.settings.timezone);
   return (
     <>
-      <p>Mi saldo ordena tus ingresos y gastos. Usaremos pesos chilenos y la hora de Santiago por defecto.</p>
+      <p>MiSaldo ordena tus ingresos y gastos. Usaremos pesos chilenos y la hora de Santiago por defecto.</p>
       <div className="field"><label htmlFor="n">¿Cómo te llamas?</label><input id="n" className="input" value={name} onChange={(e) => setName(e.target.value)} autoComplete="given-name" /></div>
       <div className="field"><label htmlFor="c">Moneda principal</label><select id="c" className="input" value={currency} onChange={(e) => setCurrency(e.target.value)}><option value="CLP">Peso chileno · CLP ($1.650.000)</option><option value="USD">Dólar · USD</option><option value="EUR">Euro · EUR</option></select></div>
       <div className="field"><label htmlFor="t">Zona horaria</label><select id="t" className="input" value={tz} onChange={(e) => setTz(e.target.value)}>{["America/Santiago", "Pacific/Easter", "America/Punta_Arenas", "America/Argentina/Buenos_Aires", "America/Lima", "America/Bogota", "America/Mexico_City", "Europe/Madrid", "UTC"].map((z) => <option key={z}>{z}</option>)}</select></div>

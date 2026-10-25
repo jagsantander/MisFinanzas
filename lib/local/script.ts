@@ -1,4 +1,4 @@
-import type { Connection } from "./types";
+import type { ScriptConnection } from "./types";
 
 /**
  * Cliente del script de la planilla (Google Apps Script).
@@ -12,10 +12,10 @@ export function validScriptUrl(url: string) {
 }
 
 /**
- * Código de conexión que muestra la planilla (menú Mi saldo → Conectar con la app): «MS1.» + JSON {u, t} en base64url.
+ * Código de conexión que muestra la planilla (menú MiSaldo → Conectar con la app): «MS1.» + JSON {u, t} en base64url.
  * Devuelve null si no es válido o si la URL no es de Apps Script.
  */
-export function parseConnectionCode(code: string): Connection | null {
+export function parseConnectionCode(code: string): ScriptConnection | null {
   const m = /^MS1\.([A-Za-z0-9_-]+)$/.exec(code.trim());
   if (!m) return null;
   try {
@@ -48,7 +48,7 @@ export class ScriptError extends Error {
   constructor(message: string, public code?: string) { super(message); }
 }
 
-export async function callScript<T = any>(conn: Connection, action: string, payload: Record<string, unknown> = {}, timeoutMs = 60_000): Promise<T> {
+export async function callScript<T = any>(conn: ScriptConnection, action: string, payload: Record<string, unknown> = {}, timeoutMs = 60_000): Promise<T> {
   if (!validScriptUrl(conn.url)) throw new ScriptError("La dirección del script no es una dirección de Google Apps Script válida", "bad_url");
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);

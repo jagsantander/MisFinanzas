@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useStore, withBase } from "@/lib/client";
-import { initStore } from "@/lib/local/store";
+import { initStore, resumeGoogle } from "@/lib/local/store";
 import { captureConnectionHash } from "@/lib/local/script";
 import type { Settings } from "@/lib/local/types";
 import { Icon } from "./Icon";
@@ -88,7 +88,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
         {!hideNav && !locked && (
           <nav className="nav" aria-label="Principal">
-            <div className="nav-brand brand" style={{ display: "none" }}><span>Mi <b>saldo</b></span></div>
+            <div className="nav-brand brand" style={{ display: "none" }}><span>Mi<b>Saldo</b></span></div>
             {NAV.map((n) => (
               <Link key={n.href} href={n.href} aria-current={isActive(n.href) ? "page" : undefined}>
                 <Icon name={n.icon} />
@@ -105,6 +105,20 @@ export function AppShell({ children }: { children: ReactNode }) {
 /** Aviso discreto cuando los datos no están respaldados en la planilla o la sincronización falla. */
 function SyncBanner() {
   const st = useStore();
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  if (st.connection && st.needsGoogle && !st.syncError) {
+    return (
+      <div className="page" style={{ paddingBottom: 0 }}>
+        <Notice tone="warn">
+          <div className="row" style={{ flexWrap: "wrap", gap: 8 }}>
+            <p className="small grow" style={{ margin: 0 }}>{st.pending.length ? `Tienes ${st.pending.length} cambios guardados aquí que aún no llegan a tu planilla.` : "Toca para traer lo último de tu planilla."}{err ? ` ${err}` : ""}</p>
+            <button className="btn sm primary" disabled={busy} onClick={async () => { setBusy(true); setErr(null); try { await resumeGoogle(); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); } }}>{busy ? "Sincronizando…" : "Sincronizar con Google"}</button>
+          </div>
+        </Notice>
+      </div>
+    );
+  }
   if (st.connection && !st.syncError) return null;
   return (
     <div className="page" style={{ paddingBottom: 0 }}>
@@ -128,7 +142,7 @@ function LockScreen({ onUnlocked }: { onUnlocked: () => void }) {
     <main className="page" style={{ paddingTop: 48 }}>
       <div className="stack" style={{ textAlign: "center", alignItems: "center" }}>
         <span className="ico" style={{ width: 72, height: 72, background: "var(--primary-soft)", color: "var(--primary)" }}><Icon name="lock" size={32} /></span>
-        <h1 className="title">Mi saldo está bloqueado</h1>
+        <h1 className="title">MiSaldo está bloqueado</h1>
         <p className="muted">Usa la huella, el rostro o el PIN de este dispositivo para continuar.</p>
       </div>
       {error && <Notice tone="danger"><p>{error}</p></Notice>}

@@ -4,8 +4,10 @@ import Link from "next/link";
 import { fmtDateTime, RUN_STATUS, useStore } from "@/lib/client";
 import { Icon } from "@/components/Icon";
 import { Notice, useToast } from "@/components/ui";
-import { AiSetup, AutomationControls, ClaudeAuthSteps, ClaudeSetup, ClaudeTaskSteps, GmailAccess, ModePicker, PrefsForm } from "@/components/automation";
-import { SheetConnection } from "@/components/sheet";
+import { AiSetup, AutomationControls, ClaudeAuthSteps, ClaudeSetup, ClaudeTaskSteps, DeviceAiSetup, GmailAccess, ModePicker, PrefsForm } from "@/components/automation";
+import { AddScriptSteps, SheetConnection } from "@/components/sheet";
+import { isSheets } from "@/lib/local/types";
+import { spreadsheetUrl } from "@/lib/google/sheets";
 
 export default function AutomationPage() {
   const st = useStore();
@@ -16,11 +18,25 @@ export default function AutomationPage() {
     <main className="page">
       <Link href="/" className="link-btn"><Icon name="chevronLeft" size={18} /> Inicio</Link>
       <h1 className="title">Actualización nocturna</h1>
-      <p className="subtitle">Importa tus avisos financieros mientras duermes, sin servidor de Mi saldo: corre en tu cuenta de Google o en tu cuenta de Claude.</p>
-      {!st.connection || !a ? (
+      <p className="subtitle">Importa tus avisos financieros mientras duermes, sin servidor de MiSaldo: corre en tu cuenta de Google o en tu cuenta de Claude.</p>
+      {isSheets(st.connection) ? (
+        <div className="stack">
+          <h2 className="section" id="ia">Tu IA para leer boletas</h2>
+          <DeviceAiSetup />
+          <h2 className="section">Lectura automática de correos (opcional)</h2>
+          <div className="card pad stack">
+            <p className="small" style={{ margin: 0 }}>Para leer los avisos de tu banco cada noche, tu planilla necesita un pequeño script que corre en tu cuenta de Google. Google no permite que una app sin auditoría lea Gmail directamente; con el script, el permiso es tuyo y de solo lectura.</p>
+            <p className="small" style={{ margin: 0 }}>Se hace una sola vez, en un computador (unos 5 minutos). También puedes usar una tarea de Claude (requiere Claude Pro).</p>
+            <AddScriptSteps sheetUrl={spreadsheetUrl(st.connection.spreadsheetId)} />
+          </div>
+        </div>
+      ) : !st.connection || !a ? (
         <div className="stack">
           <Notice tone="warn"><p>Primero conecta tu planilla: ahí se guardan los movimientos que llegan de noche.</p></Notice>
           <SheetConnection />
+          <h2 className="section" id="ia">Tu IA para leer boletas</h2>
+          <p className="small muted">Funciona incluso sin planilla.</p>
+          <DeviceAiSetup />
         </div>
       ) : (
         <div className="stack">
@@ -43,7 +59,7 @@ export default function AutomationPage() {
               <h2 className="section">2. Tu tarea de Claude</h2>
               <ClaudeSetup a={a} />
               {a.approved && <details className="card pad" open={a.status === "active" && !a.lastRun}><summary>Cómo crear la tarea en claude.ai</summary><div style={{ marginTop: 8 }}><ClaudeTaskSteps a={a} /></div></details>}
-              <p className="small muted">Mi saldo no puede crear ni ver tu tarea de Claude (Anthropic no ofrece una API para eso). Sabrás que funciona cuando aparezca aquí la última importación.</p>
+              <p className="small muted">MiSaldo no puede crear ni ver tu tarea de Claude (Anthropic no ofrece una API para eso). Sabrás que funciona cuando aparezca aquí la última importación.</p>
             </>
           )}
 

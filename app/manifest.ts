@@ -6,8 +6,8 @@ const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: `${BASE}/`,
-    name: "Mi saldo",
-    short_name: "Mi saldo",
+    name: "MiSaldo",
+    short_name: "MiSaldo",
     description: "Controla tus ingresos y gastos personales",
     lang: "es-CL",
     start_url: `${BASE}/`,

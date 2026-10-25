@@ -5,6 +5,7 @@ import { AUTOMATION_STATUS, fmtDateTime, useStore } from "@/lib/client";
 import { script } from "@/lib/local/store";
 import type { AutomationPrefs, AutomationView } from "@/lib/local/types";
 import { Icon } from "./Icon";
+import { clearDeviceAi, getDeviceAi, saveDeviceAi, type DeviceAi } from "@/lib/ai/receipt";
 import { ConfirmSheet, Notice, useToast } from "./ui";
 
 const TIMES = Array.from({ length: 96 }, (_, i) => `${String(Math.floor(i / 4)).padStart(2, "0")}:${String((i % 4) * 15).padStart(2, "0")}`);
@@ -48,6 +49,43 @@ export function ModePicker({ a, onChanged }: { a: AutomationView; onChanged?: ()
   );
 }
 
+/** Clave de Gemini guardada solo en este dispositivo, para leer boletas sin script. */
+export function DeviceAiSetup() {
+  const toast = useToast();
+  const [ai, setAi] = useState<DeviceAi | null | undefined>(undefined);
+  const [key, setKey] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => { getDeviceAi().then((x) => setAi(x ?? null)); }, []);
+  if (ai === undefined) return null;
+  return (
+    <div className="card pad stack">
+      {ai ? (
+        <>
+          <div className="row">
+            <span className="ico" style={{ background: "var(--primary-soft)", color: "var(--primary)" }}><Icon name="sparkle" /></span>
+            <div className="grow"><strong>Google Gemini</strong><div className="small muted">Clave …{ai.key.slice(-4)} · {ai.model} · guardada en este dispositivo</div></div>
+            <span className="badge ok">Lista</span>
+          </div>
+          <button className="btn sm danger" onClick={async () => { await clearDeviceAi(); setAi(null); toast({ text: "Clave eliminada de este dispositivo" }); }}>Eliminar clave</button>
+        </>
+      ) : (
+        <>
+          <div className="field"><label htmlFor="dkey">Clave de Gemini</label>
+            <input id="dkey" className="input" type="password" autoComplete="off" spellCheck={false} placeholder="AIza…" value={key} onChange={(e) => setKey(e.target.value)} />
+            <span className="hint">Créala gratis en <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> con tu cuenta de Google (no pide tarjeta). Se guarda solo en este dispositivo; las fotos van directo de tu teléfono a Gemini.</span></div>
+          {err && <Notice tone="danger"><p className="small">{err}</p></Notice>}
+          <button className="btn primary block" disabled={busy || key.trim().length < 20} onClick={async () => {
+            setBusy(true); setErr(null);
+            try { setAi(await saveDeviceAi(key)); setKey(""); toast({ text: "Clave verificada y guardada" }); }
+            catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
+          }}>{busy ? "Verificando…" : "Verificar y guardar"}</button>
+        </>
+      )}
+    </div>
+  );
+}
+
 /** Modalidad Google: clave de IA del usuario (se guarda en las propiedades privadas de SU script). */
 export function AiSetup({ a }: { a: AutomationView }) {
   const toast = useToast();
@@ -79,7 +117,7 @@ export function AiSetup({ a }: { a: AutomationView }) {
               {(models ?? (a.ai.model ? [a.ai.model] : [])).map((m) => <option key={m} value={m}>{m}</option>)}
             </select>
             <span className="hint">La lista viene de tu cuenta. Elige uno que admita respuestas en JSON (por ejemplo, gemini-2.5-flash).</span></div>
-          <div className="field"><label htmlFor="lim">Límite mensual de tokens en Mi saldo (opcional)</label>
+          <div className="field"><label htmlFor="lim">Límite mensual de tokens en MiSaldo (opcional)</label>
             <div className="row"><input id="lim" className="input" inputMode="numeric" placeholder="Ej.: 2000000" value={limit} onChange={(e) => setLimit(e.target.value.replace(/\D/g, ""))} />
               <button className="btn sm" disabled={busy} onClick={() => run(async () => { await script("setAi", { monthlyTokenLimit: limit ? Number(limit) : null }); toast({ text: "Límite guardado" }); })}>Guardar</button></div>
             <span className="hint">Usados este mes: {a.usage.tokens.toLocaleString("es-CL")} tokens. Es un límite técnico (no un presupuesto personal) y no reemplaza la facturación de tu proveedor.</span></div>
@@ -282,7 +320,7 @@ export function ReviewInstruction({ a, onApproved, onCancel, showApproved }: { a
   if (!v) return (
     <div className="stack">
       {!ready && <Notice tone="warn"><p>{a.mode === "google" ? "Conecta tu IA y elige un modelo antes de generar la instrucción." : a.mode === "claude" ? "Indica la cuenta de Gmail conectada a Claude antes de generar la instrucción." : "Elige primero dónde se ejecutará la actualización nocturna."}</p></Notice>}
-      <p>{a.mode === "google" ? "Tu IA personalizará las pautas de clasificación sobre una plantilla controlada por Mi saldo." : "Mi saldo armará la instrucción que pegarás en tu tarea de Claude."} Nada se activa hasta que la valides.</p>
+      <p>{a.mode === "google" ? "Tu IA personalizará las pautas de clasificación sobre una plantilla controlada por MiSaldo." : "MiSaldo armará la instrucción que pegarás en tu tarea de Claude."} Nada se activa hasta que la valides.</p>
       {err && <Notice tone="danger"><p>{err}</p></Notice>}
       <button className="btn primary block" disabled={!ready || busy !== null} onClick={generate}>{busy === "gen" ? "Generando…" : "Generar instrucción"}</button>
       <button className="btn block" onClick={onCancel}>Cancelar</button>
@@ -362,7 +400,7 @@ export function AutomationControls({ a }: { a: AutomationView }) {
       {a.mode === "claude" && a.status === "paused" && <p className="small muted" style={{ margin: 0 }}>Mientras esté pausada, tu planilla rechaza las importaciones de Claude. Para ahorrar uso, pausa también la tarea en claude.ai.</p>}
       {a.status !== "cancelled" && a.approved && <button className="btn danger block" onClick={() => setConfirmCancel(true)}>Cancelar automatización</button>}
       <ConfirmSheet open={confirmCancel} onClose={() => setConfirmCancel(false)} danger title="¿Cancelar la actualización nocturna?" confirmLabel="Cancelar automatización" busy={busy}
-        body={<>{a.mode === "google" ? <p>Se elimina el disparador diario de tu script y se revoca la aprobación.</p> : <p>Tu planilla dejará de aceptar importaciones de Claude. <strong>La tarea en claude.ai sigue existiendo:</strong> elimínala tú en claude.ai/code/routines (Mi saldo no puede hacerlo).</p>}<p><strong>No se borran tus movimientos.</strong></p></>}
+        body={<>{a.mode === "google" ? <p>Se elimina el disparador diario de tu script y se revoca la aprobación.</p> : <p>Tu planilla dejará de aceptar importaciones de Claude. <strong>La tarea en claude.ai sigue existiendo:</strong> elimínala tú en claude.ai/code/routines (MiSaldo no puede hacerlo).</p>}<p><strong>No se borran tus movimientos.</strong></p></>}
         onConfirm={async () => { await act("cancel", "Automatización cancelada"); setConfirmCancel(false); }} />
     </section>
   );

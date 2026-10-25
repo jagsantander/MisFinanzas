@@ -6,10 +6,10 @@ const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 const font = Plus_Jakarta_Sans({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
 
 export const metadata: Metadata = {
-  title: { default: "Mi saldo", template: "%s · Mi saldo" },
+  title: { default: "MiSaldo", template: "%s · MiSaldo" },
   description: "Controla tus ingresos y gastos personales",
   manifest: `${BASE}/manifest.webmanifest`,
-  appleWebApp: { capable: true, title: "Mi saldo", statusBarStyle: "default" },
+  appleWebApp: { capable: true, title: "MiSaldo", statusBarStyle: "default" },
   icons: { icon: `${BASE}/icons/icon-192.png`, apple: `${BASE}/icons/apple-touch-icon.png` },
 };
 

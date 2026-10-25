@@ -65,4 +65,10 @@ export type ReceiptScan = {
   description: string; categoryId: string | null; subcategoryId: string | null; confidence: number; warnings: string[];
 };
 
-export type Connection = { url: string; token: string };
+/** Planilla con el script de Apps Script (URL de la aplicación web + token). Las conexiones antiguas no tienen «kind». */
+export type ScriptConnection = { kind?: "script"; url: string; token: string };
+/** Planilla creada por la app en Google Drive, usada directo con la API de Sheets (sin script). */
+export type SheetsConnection = { kind: "sheets"; spreadsheetId: string; email: string };
+export type Connection = ScriptConnection | SheetsConnection;
+export const isScript = (c: Connection | null | undefined): c is ScriptConnection => Boolean(c && c.kind !== "sheets");
+export const isSheets = (c: Connection | null | undefined): c is SheetsConnection => Boolean(c && c.kind === "sheets");

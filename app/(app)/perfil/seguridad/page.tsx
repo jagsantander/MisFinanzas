@@ -24,7 +24,7 @@ export default function Security() {
 
       <h2 className="section">Bloqueo con huella, rostro o PIN</h2>
       <div className="card pad stack">
-        <p className="small" style={{ margin: 0 }}>Pide desbloquear Mi saldo con el método del dispositivo al abrir la app y tras un tiempo sin uso. El sistema verifica tu identidad: <strong>Mi saldo no recibe ni guarda datos biométricos</strong>.</p>
+        <p className="small" style={{ margin: 0 }}>Pide desbloquear MiSaldo con el método del dispositivo al abrir la app y tras un tiempo sin uso. El sistema verifica tu identidad: <strong>MiSaldo no recibe ni guarda datos biométricos</strong>.</p>
         {supported === false && <Notice tone="warn"><p className="small">Este dispositivo o navegador no ofrece un desbloqueo integrado.</p></Notice>}
         <div className="field"><label htmlFor="lm">Bloquear tras</label>
           <select id="lm" className="input" value={minutes} onChange={(e) => { const m = Number(e.target.value); setMinutes(m); if (active) setLockMinutes(m); }}>
@@ -41,7 +41,7 @@ export default function Security() {
       <div className="card pad stack">
         <p className="small" style={{ margin: 0 }}>Aquí se guardan una copia de tus datos y el <strong>token de tu planilla</strong>. Quien tenga ese token y la dirección del script puede ver tus movimientos: no lo compartas.</p>
         <ul className="small" style={{ margin: 0, paddingLeft: 18 }}>
-          <li>Si pierdes este dispositivo, regenera el token en la planilla: menú <strong>Mi saldo → Regenerar token de la app</strong>.</li>
+          <li>Si pierdes este dispositivo, regenera el token en la planilla: menú <strong>MiSaldo → Regenerar token de la app</strong>.</li>
           <li>La clave de tu IA nunca se guarda aquí: vive en las propiedades privadas de tu script.</li>
         </ul>
         <button className="btn danger block" onClick={() => setConfirmForget(true)}>Olvidar este dispositivo</button>

@@ -3,23 +3,32 @@ import { DEFAULT_EXPENSE, DEFAULT_INCOME } from "../categories/defaults";
 import { idbClear, idbGet, idbSet } from "./idb";
 import { callScript, ScriptError } from "./script";
 import {
-  DEFAULT_SETTINGS, SYNCED_TABLES, type AutomationView, type Category, type Connection, type Settings, type TableName, type Tables,
+  DEFAULT_SETTINGS, isScript, isSheets, SYNCED_TABLES, type AutomationView, type Category, type Connection, type ScriptConnection, type Settings,
+  type SheetsConnection, type TableName, type Tables,
 } from "./types";
+import { currentToken, forgetToken, GoogleAuthError, requestToken } from "../google/auth";
+import { accountEmail, createSpreadsheet, findSpreadsheet, pushChanges, readAll, writeSettings } from "../google/sheets";
 
 /**
  * Estado de la app en el navegador (local primero):
  * - Todo se guarda en IndexedDB y funciona sin conexión.
  * - Si hay una planilla conectada, los cambios se envían en segundo plano y se reciben los de la
  *   actualización nocturna y de otros dispositivos (gana la versión más reciente de cada registro).
+ * - La planilla puede estar conectada de dos formas: directo con Google (la app usa la API de Sheets) o
+ *   con el script de Apps Script (necesario para la lectura nocturna de Gmail).
  */
 export type Pending = { table: TableName; record: { id: string; updatedAt: string } & Record<string, unknown> };
 export type State = {
   loaded: boolean; tables: Tables; settings: Settings; automation: AutomationView | null; connection: Connection | null;
   account: string | null; lastSyncAt: string | null; pending: Pending[]; syncing: boolean; syncError: string | null;
+  /** Ajustes cambiados aquí que aún no llegan a la planilla (conexión directa con Google). */
+  settingsPending: boolean;
+  /** Conexión directa con Google sin permiso vigente: hay que tocar «Sincronizar con Google». */
+  needsGoogle: boolean;
 };
 
 const emptyTables = (): Tables => ({ movements: [], categories: [], rules: [], budgets: [], overrides: [], alertStates: [], notifications: [], changes: [], runs: [] });
-let state: State = { loaded: false, tables: emptyTables(), settings: DEFAULT_SETTINGS, automation: null, connection: null, account: null, lastSyncAt: null, pending: [], syncing: false, syncError: null };
+let state: State = { loaded: false, tables: emptyTables(), settings: DEFAULT_SETTINGS, automation: null, connection: null, account: null, lastSyncAt: null, pending: [], syncing: false, syncError: null, settingsPending: false, needsGoogle: false };
 const listeners = new Set<() => void>();
 let pushTimer: ReturnType<typeof setTimeout> | null = null;
 let initPromise: Promise<void> | null = null;
@@ -30,8 +39,8 @@ function emit() { listeners.forEach((f) => f()); }
 function set(patch: Partial<State>) { state = { ...state, ...patch }; emit(); void persist(); }
 
 async function persist() {
-  const { tables, settings, automation, connection, account, lastSyncAt, pending } = state;
-  await idbSet("state", { tables, settings, automation, connection, account, lastSyncAt, pending });
+  const { tables, settings, automation, connection, account, lastSyncAt, pending, settingsPending } = state;
+  await idbSet("state", { tables, settings, automation, connection, account, lastSyncAt, pending, settingsPending });
 }
 
 export const nowIso = () => new Date().toISOString();
@@ -58,7 +67,7 @@ export function initStore() {
     // Siempre un objeto nuevo: React detecta cambios por referencia.
     let next: State = saved ? { ...state, ...saved, tables: { ...emptyTables(), ...saved.tables }, settings: { ...DEFAULT_SETTINGS, ...saved.settings } } : { ...state };
     if (!next.tables.categories.length && !next.connection) next = { ...next, tables: { ...next.tables, categories: defaultCategories() } };
-    state = { ...next, loaded: true, syncing: false };
+    state = { ...next, loaded: true, syncing: false, needsGoogle: false };
     emit();
     void persist();
     if (state.connection) void sync();
@@ -91,10 +100,22 @@ function schedulePush() {
   pushTimer = setTimeout(() => { void sync(); }, 800);
 }
 
+/** Combina lo leído de la planilla con lo pendiente de este dispositivo (gana el updatedAt más reciente). */
+function withPending(remote: Tables, pending: Pending[]): Tables {
+  const tables = { ...emptyTables(), ...remote };
+  for (const p of pending) {
+    const list = tables[p.table] as Pending["record"][];
+    const i = list.findIndex((x) => x.id === p.record.id);
+    if (i < 0) list.push(p.record); else if (String(list[i].updatedAt) < p.record.updatedAt) list[i] = p.record;
+  }
+  return tables;
+}
+
 /** Envía lo pendiente y trae lo último de la planilla. */
 export async function sync() {
   const conn = state.connection;
   if (!conn || state.syncing) return;
+  if (isSheets(conn)) return syncSheets(conn);
   set({ syncing: true });
   try {
     const sending = state.pending;
@@ -103,23 +124,82 @@ export async function sync() {
       set({ pending: state.pending.filter((p) => !sending.includes(p)) });
     }
     const data = await callScript<{ tables: Tables; settings: Settings; automation: AutomationView }>(conn, "pull");
-    const tables = { ...emptyTables(), ...data.tables };
-    for (const p of state.pending) {
-      const list = tables[p.table] as Pending["record"][];
-      const i = list.findIndex((x) => x.id === p.record.id);
-      if (i < 0) list.push(p.record); else if (String(list[i].updatedAt) < p.record.updatedAt) list[i] = p.record;
-    }
+    const tables = withPending(data.tables, state.pending);
     set({ tables, settings: { ...DEFAULT_SETTINGS, ...data.settings }, automation: data.automation, account: data.automation?.account ?? state.account, lastSyncAt: nowIso(), syncError: null, syncing: false });
   } catch (e) {
     set({ syncing: false, syncError: (e as Error).message });
   }
 }
 
+/** Sincronización directa con Google Sheets. Sin permiso vigente no abre ventanas: avisa con needsGoogle. */
+async function syncSheets(conn: SheetsConnection) {
+  const token = currentToken();
+  if (!token) { set({ needsGoogle: true }); return; }
+  set({ syncing: true });
+  try {
+    const remote = await readAll(token, conn.spreadsheetId);
+    const sending = state.pending;
+    if (sending.length) {
+      await pushChanges(token, conn.spreadsheetId, remote, sending);
+      set({ pending: state.pending.filter((p) => !sending.includes(p)) });
+    }
+    const wroteSettings = state.settingsPending || !remote.settings;
+    if (wroteSettings) {
+      await writeSettings(token, conn.spreadsheetId, state.settings);
+      set({ settingsPending: false });
+    }
+    const tables = withPending(withPending(remote.tables, sending), state.pending);
+    // Los ajustes de este dispositivo ganan si se acaban de subir o si cambiaron durante la sincronización.
+    const settings = wroteSettings || state.settingsPending ? state.settings : { ...DEFAULT_SETTINGS, ...remote.settings };
+    set({ tables, settings, lastSyncAt: nowIso(), syncError: null, syncing: false, needsGoogle: false });
+  } catch (e) {
+    if (e instanceof GoogleAuthError) { forgetToken(); set({ syncing: false, needsGoogle: true }); return; }
+    set({ syncing: false, syncError: (e as Error).message });
+  }
+}
+
+/** Renueva el permiso de Google (desde un toque) y sincroniza. */
+export async function resumeGoogle() {
+  const conn = state.connection;
+  if (!isSheets(conn)) return;
+  await requestToken({ hint: conn.email });
+  set({ needsGoogle: false });
+  await sync();
+  if (state.syncError) throw new Error(state.syncError);
+}
+
+/**
+ * «Continuar con Google»: pide permiso, busca la planilla de MiSaldo de esa cuenta (o la crea) y la conecta.
+ * Si la planilla no tiene datos, sube los de este dispositivo; si ya tiene, se usan los de la planilla.
+ */
+export async function connectGoogle() {
+  const token = await requestToken({ prompt: "select_account" });
+  const email = await accountEmail(token);
+  const id = (await findSpreadsheet(token))?.id ?? (await createSpreadsheet(token));
+  const remote = await readAll(token, id);
+  const local = state.tables;
+  const localHasData = local.movements.length + local.budgets.length + local.rules.length > 0;
+  const remoteHasData = remote.tables.movements.length + remote.tables.budgets.length + remote.tables.rules.length > 0;
+  let pending: Pending[] = [];
+  let tables = emptyTables();
+  if (!remoteHasData && (localHasData || remote.tables.categories.length === 0)) {
+    const now = nowIso();
+    const keep = new Set(local.categories.map((c) => c.id));
+    const drop = remote.tables.categories.filter((c) => !keep.has(c.id)).map((c) => ({ table: "categories" as const, record: { ...c, deletedAt: now, updatedAt: now } }));
+    pending = [...drop, ...SYNCED_TABLES.flatMap((t) => (local[t] as Pending["record"][]).map((record) => ({ table: t, record: { ...record, updatedAt: now } })))];
+    tables = local;
+  }
+  const settings = remote.settings ? { ...DEFAULT_SETTINGS, ...remote.settings, onboardingDone: Boolean(remote.settings.onboardingDone || state.settings.onboardingDone) } : state.settings;
+  set({ connection: { kind: "sheets", spreadsheetId: id, email }, account: email, automation: null, pending, tables, settings, settingsPending: !remote.settings, needsGoogle: false, syncError: null });
+  await sync();
+  if (state.syncError) throw new Error(state.syncError);
+}
+
 /**
  * Conecta la planilla. Si la planilla está vacía y este navegador ya tiene datos, los sube
  * (reemplazando las categorías iniciales de la planilla). Si la planilla ya tiene datos, se usan esos.
  */
-export async function connect(conn: Connection) {
+export async function connect(conn: ScriptConnection) {
   const ping = await callScript<{ account: string }>(conn, "ping");
   const remote = await callScript<{ tables: Tables; settings: Settings }>(conn, "pull", {}, 90_000);
   const localHasData = state.tables.movements.length + state.tables.budgets.length + state.tables.rules.length > 0;
@@ -131,15 +211,18 @@ export async function connect(conn: Connection) {
     const drop = remote.tables.categories.filter((c) => !keep.has(c.id)).map((c) => ({ table: "categories" as const, record: { ...c, deletedAt: now, updatedAt: now } }));
     pending = [...drop, ...SYNCED_TABLES.flatMap((t) => (state.tables[t] as Pending["record"][]).map((record) => ({ table: t, record: { ...record, updatedAt: now } })))];
   }
+  // Al pasar de la conexión directa con Google al script (misma planilla), no se pierde lo pendiente.
+  if (isSheets(state.connection)) pending = [...pending, ...state.pending];
   // Planilla recién creada: conserva las preferencias elegidas en este dispositivo.
   if (!remote.settings?.onboardingDone && !remote.settings?.name) await callScript(conn, "saveSettings", { settings: state.settings });
-  set({ connection: conn, account: ping.account, pending, ...(localHasData && !remoteHasData ? {} : { tables: emptyTables() }) });
+  set({ connection: conn, account: ping.account, pending, settingsPending: false, needsGoogle: false, ...(localHasData && !remoteHasData ? {} : { tables: emptyTables() }) });
   await sync();
   if (state.syncError) throw new ScriptError(state.syncError);
 }
 
 export function disconnect() {
-  set({ connection: null, pending: [], automation: null, account: null, syncError: null });
+  if (isSheets(state.connection)) forgetToken();
+  set({ connection: null, pending: [], automation: null, account: null, syncError: null, settingsPending: false, needsGoogle: false });
 }
 
 /** Borra todos los datos de este dispositivo (la planilla no se toca). */
@@ -151,6 +234,7 @@ export async function forgetDevice() {
 export async function saveSettings(patch: Partial<Settings>) {
   const settings = { ...state.settings, ...patch };
   set({ settings });
+  if (isSheets(state.connection)) { set({ settingsPending: true }); schedulePush(); return; }
   if (state.connection) {
     try { await callScript(state.connection, "saveSettings", { settings }); } catch (e) { set({ syncError: (e as Error).message }); throw e; }
   }
@@ -159,6 +243,7 @@ export async function saveSettings(patch: Partial<Settings>) {
 /** Acción del script (IA, actualización nocturna). Actualiza el estado si la respuesta trae la automatización. */
 export async function script<T = any>(action: string, payload: Record<string, unknown> = {}, timeoutMs?: number): Promise<T> {
   if (!state.connection) throw new ScriptError("Conecta tu planilla primero", "not_connected");
+  if (!isScript(state.connection)) throw new ScriptError("Esta función necesita el script de tu planilla (Actualización nocturna)", "no_script");
   const res = await callScript<T & { automation?: AutomationView }>(state.connection, action, payload, timeoutMs);
   if (res.automation) set({ automation: res.automation });
   // Acciones que agregan datos en la planilla (p. ej. «Ejecutar ahora»): traerlos de inmediato.

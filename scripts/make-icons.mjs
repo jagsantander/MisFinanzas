@@ -10,9 +10,27 @@ function png(size, draw) {
   const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(size, 0); ihdr.writeUInt32BE(size, 4); ihdr[8] = 8; ihdr[9] = 6;
   return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk("IHDR", ihdr), chunk("IDAT", deflateSync(raw)), chunk("IEND", Buffer.alloc(0))]);
 }
-// Letra "M" como polígono en coordenadas unitarias.
-const M = [[0.26, 0.72], [0.26, 0.3], [0.36, 0.3], [0.5, 0.5], [0.64, 0.3], [0.74, 0.3], [0.74, 0.72], [0.64, 0.72], [0.64, 0.47], [0.5, 0.66], [0.36, 0.47], [0.36, 0.72]];
-function inPoly(x, y, poly) { let ins = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [xi, yi] = poly[i], [xj, yj] = poly[j]; if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) ins = !ins; } return ins; }
+// Logo de MiSaldo: una moneda (anillo) con el signo $ en blanco, dibujada con distancias para bordes suaves.
+const segDist = (px, py, [ax, ay], [bx, by]) => {
+  const dx = bx - ax, dy = by - ay;
+  const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)));
+  return Math.hypot(px - ax - t * dx, py - ay - t * dy);
+};
+const arc = (cx, cy, r, from, to, n = 40) => Array.from({ length: n + 1 }, (_, i) => {
+  const a = ((from + ((to - from) * i) / n) * Math.PI) / 180;
+  return [cx + r * Math.cos(a), cy - r * Math.sin(a)];
+});
+// La «S» del signo: arco superior (de la derecha, por arriba, hasta el centro) y arco inferior (del centro, por abajo, a la izquierda).
+const S = [...arc(0.5, 0.415, 0.085, -15, 270), ...arc(0.5, 0.585, 0.085, 90, -195).slice(1)];
+const BARS = [[[0.5, 0.265], [0.5, 0.735]]];
+function logoCoverage(u, v, px) {
+  const ring = Math.abs(Math.hypot(u - 0.5, v - 0.5) - 0.315) - 0.022;
+  let s = Infinity;
+  for (let i = 1; i < S.length; i++) s = Math.min(s, segDist(u, v, S[i - 1], S[i]));
+  for (const [a, b] of BARS) s = Math.min(s, segDist(u, v, a, b));
+  const d = Math.min(ring, s - 0.03);
+  return Math.max(0, Math.min(1, 0.5 - d / px)); // antialiasing de un píxel
+}
 function icon(size, { maskable }) {
   const radius = maskable ? 0 : 0.22, scale = maskable ? 0.8 : 1;
   return png(size, (px, py) => {
@@ -20,9 +38,9 @@ function icon(size, { maskable }) {
     const dx = Math.max(radius - u, 0, u - (1 - radius)), dy = Math.max(radius - v, 0, v - (1 - radius));
     if (radius && Math.hypot(dx, dy) > radius) return [0, 0, 0, 0];
     const t = (u + v) / 2;
-    const bg = [Math.round(15 - 5 * t), Math.round(125 - 30 * t), Math.round(112 - 27 * t), 255];
-    const mu = 0.5 + (u - 0.5) / scale, mv = 0.5 + (v - 0.5) / scale;
-    return inPoly(mu, mv, M) ? [255, 255, 255, 255] : bg;
+    const bg = [Math.round(18 - 8 * t), Math.round(140 - 45 * t), Math.round(122 - 37 * t)];
+    const k = logoCoverage(0.5 + (u - 0.5) / scale, 0.5 + (v - 0.5) / scale, 1 / (size * scale));
+    return [...bg.map((c) => Math.round(c + (255 - c) * k)), 255];
   });
 }
 mkdirSync("public/icons", { recursive: true });

@@ -1,10 +1,11 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { api, ApiError, KIND_LABEL, useApi, useStore } from "@/lib/client";
 import { script } from "@/lib/local/store";
-import type { ReceiptScan } from "@/lib/local/types";
+import { isScript, type ReceiptScan } from "@/lib/local/types";
+import { getDeviceAi, scanReceiptOnDevice, type DeviceAi } from "@/lib/ai/receipt";
 import { CategoryPicker } from "@/components/CategoryPicker";
 import { Notice } from "@/components/ui";
 import { Icon } from "@/components/Icon";
@@ -42,7 +43,10 @@ export default function NewMovement() {
   const st = useStore();
   const photo = useRef<HTMLInputElement>(null);
   const [scan, setScan] = useState<{ busy: boolean; error: string | null; warnings: string[]; done?: boolean }>({ busy: false, error: null, warnings: [] });
-  const canScan = Boolean(st.connection && st.automation?.hasAiKey && st.automation.ai.model);
+  const [deviceAi, setDeviceAi] = useState<DeviceAi | null>(null);
+  useEffect(() => { getDeviceAi().then((x) => setDeviceAi(x ?? null)); }, []);
+  const scriptAi = Boolean(isScript(st.connection) && st.automation?.hasAiKey && st.automation.ai.model);
+  const canScan = scriptAi || Boolean(deviceAi);
   const cur = me?.user.currency ?? "CLP";
 
   async function readReceipt(file: File | undefined) {
@@ -50,7 +54,9 @@ export default function NewMovement() {
     setScan({ busy: true, error: null, warnings: [] });
     try {
       const image = await shrinkPhoto(file);
-      const { receipt: r } = await script<{ receipt: ReceiptScan }>("scanReceipt", { image, mimeType: "image/jpeg" }, 90_000);
+      const r = scriptAi
+        ? (await script<{ receipt: ReceiptScan }>("scanReceipt", { image, mimeType: "image/jpeg" }, 90_000)).receipt
+        : await scanReceiptOnDevice(deviceAi!, image, st.settings, st.tables.categories);
       const warnings = [...r.warnings];
       if (r.currency !== cur) warnings.push(`La boleta está en ${r.currency}; el monto se dejó en blanco porque tu moneda es ${cur}.`);
       setKind("expense");
@@ -87,7 +93,7 @@ export default function NewMovement() {
         <button type="button" className="btn block" disabled={!canScan || scan.busy} onClick={() => photo.current?.click()}>
           <Icon name="camera" size={18} /> {scan.busy ? "Leyendo la boleta…" : "Fotografiar boleta"}
         </button>
-        {!canScan && <p className="small muted" style={{ margin: 0 }}>Para leer boletas con IA, <Link href={st.connection ? "/automatizacion#ia" : "/conexiones"}>{st.connection ? "conecta tu IA" : "conecta tu planilla y tu IA"}</Link>. Con una clave gratuita de Gemini no tiene costo.</p>}
+        {!canScan && <p className="small muted" style={{ margin: 0 }}>Para leer boletas con IA, <Link href="/automatizacion#ia">agrega tu clave de Gemini</Link>. Es gratis y toma un minuto.</p>}
         {canScan && !scan.busy && !scan.done && !scan.error && <p className="small muted" style={{ margin: 0 }}>La foto se analiza con tu IA y no se guarda. Revisa los datos antes de guardar.</p>}
         {scan.done && !scan.warnings.length && <Notice tone="ok"><p className="small">Datos leídos de la boleta. Revísalos y guarda.</p></Notice>}
         {scan.error && <Notice tone="danger"><p className="small">{scan.error}</p></Notice>}

@@ -1,7 +1,7 @@
 "use client";
 /**
  * Bloqueo local de la app con la huella, el rostro o el PIN del dispositivo (WebAuthn de plataforma).
- * Mi saldo no recibe ni guarda datos biométricos: el sistema solo confirma que la persona desbloqueó.
+ * MiSaldo no recibe ni guarda datos biométricos: el sistema solo confirma que la persona desbloqueó.
  * Límite: sin servidor, es una barrera de uso (frente a miradas casuales), no cifrado de los datos.
  */
 const KEY = "mf-lock";
@@ -24,8 +24,8 @@ export async function lockSupported() {
 export async function enableLock(minutes: number) {
   const cred = (await navigator.credentials.create({
     publicKey: {
-      challenge: rand(32), rp: { name: "Mi saldo", id: location.hostname },
-      user: { id: rand(16), name: "misfinanzas-local", displayName: "Bloqueo de Mi saldo" },
+      challenge: rand(32), rp: { name: "MiSaldo", id: location.hostname },
+      user: { id: rand(16), name: "misfinanzas-local", displayName: "Bloqueo de MiSaldo" },
       pubKeyCredParams: [{ type: "public-key", alg: -7 }, { type: "public-key", alg: -257 }],
       authenticatorSelection: { authenticatorAttachment: "platform", userVerification: "required", residentKey: "discouraged" },
       attestation: "none", timeout: 60_000,

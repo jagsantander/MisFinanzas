@@ -1,13 +1,13 @@
-# Mi saldo
+# MiSaldo
 
-> El repositorio y la dirección siguen llamándose `MisFinanzas`; el nombre visible de la app es «Mi saldo».
+> El repositorio y la dirección siguen llamándose `MisFinanzas`; el nombre visible de la app es «MiSaldo».
 
 App gratuita para controlar ingresos y gastos personales. Es una PWA instalable, pensada primero para el celular, en español y con pesos chilenos (`$1.650.000`) por defecto.
 
-**Mi saldo no tiene servidor.** La app es una página estática en GitHub Pages:
+**MiSaldo no tiene servidor.** La app es una página estática en GitHub Pages:
 
 - Cada usuario guarda sus datos en **su propia planilla de Google Sheets**, con una copia en su dispositivo.
-- La **actualización nocturna** corre en la cuenta de cada usuario, en su cuenta de Google o en su cuenta de Claude, nunca en un servidor de Mi saldo.
+- La **actualización nocturna** corre en la cuenta de cada usuario, en su cuenta de Google o en su cuenta de Claude, nunca en un servidor de MiSaldo.
 
 Publicada en: **https://jagsantander.github.io/MisFinanzas/**
 
@@ -32,7 +32,7 @@ Publicada en: **https://jagsantander.github.io/MisFinanzas/**
 |---|---|---|
 | App web / PWA | GitHub Pages (`out/`, exportación estática de Next.js) | Gratis |
 | Datos | Planilla de Google Sheets del usuario + copia en IndexedDB | Gratis |
-| API de la planilla | `apps-script/Code.gs`, implementado por el usuario como «Aplicación web» | Gratis |
+| Conexión con la planilla | **Continuar con Google**: la app usa la API de Sheets con el permiso `drive.file` (solo archivos que ella crea). Opcional: `apps-script/Code.gs` como «Aplicación web», necesario para la lectura nocturna | Gratis |
 | Nocturna, modalidad Google | Disparador diario del mismo script; lee Gmail con permiso de solo lectura | Gratis con el nivel gratuito de la API de Gemini, o lo que cobre OpenAI o Anthropic |
 | Nocturna, modalidad Claude | Tarea programada en claude.ai/code/routines | Incluida en Claude Pro o superior |
 
@@ -42,7 +42,7 @@ Publicada en: **https://jagsantander.github.io/MisFinanzas/**
 - **La ejecución nocturna depende de la cuenta del usuario**, como se pidió:
   - con la modalidad Claude, la tarea corre en la nube de Anthropic;
   - con la modalidad Google, corre en Google, con la IA que el usuario elija.
-- **Las APIs de OpenAI, Anthropic y Gemini no permiten crear tareas programadas.** Esto se revisó en la documentación de octubre de 2026. Por eso, en la modalidad Claude el usuario crea la tarea en claude.ai con la instrucción aprobada; Mi saldo no puede crearla ni verla.
+- **Las APIs de OpenAI, Anthropic y Gemini no permiten crear tareas programadas.** Esto se revisó en la documentación de octubre de 2026. Por eso, en la modalidad Claude el usuario crea la tarea en claude.ai con la instrucción aprobada; MiSaldo no puede crearla ni verla.
 
 ### Seguridad
 
@@ -75,18 +75,18 @@ Publicada en: **https://jagsantander.github.io/MisFinanzas/**
 ## Uso (para cada persona)
 
 1. Abre la app y sigue la bienvenida.
-2. **Crea tu planilla** desde la plantilla, sin pegar código:
-   1. En la app pulsa **Crear mi planilla** → **Hacer una copia** (la copia trae el script).
-   2. En la copia: menú **Mi saldo → Conectar con la app** y acepta los permisos. Verás «Google no verificó esta app» porque el script es tuyo y no está publicado.
-   3. Solo la primera vez, la planilla explica cómo implementar la «Aplicación web» (Ejecutar como: Yo · Acceso: Cualquier usuario).
-   4. Vuelve a **Mi saldo → Conectar con la app** y pulsa **Abrir Mi saldo y conectar**: la app muestra la cuenta y pide confirmar.
-   En otro dispositivo, pega el **código de conexión** (`MS1.…`) que muestra el mismo menú. Si no hay plantilla, la app explica cómo crear la planilla a mano pegando `Code.gs` y `appsscript.json`.
-3. Elige la modalidad nocturna y autoriza Gmail:
+2. **Conecta tu planilla con un toque:** **Continuar con Google**. La app crea la planilla «MiSaldo» en tu Drive (o la encuentra, si ya la creaste en otro dispositivo) y la sincroniza directo con la API de Sheets.
+   - El permiso de Google en el navegador dura una hora (sin servidor no hay renovación automática). Cuando vence, los cambios quedan en el dispositivo y se suben al tocar **Sincronizar con Google**; si la sesión de Google sigue abierta, no pide nada más.
+   - **Fotos de boletas:** basta una clave gratuita de Gemini, guardada solo en el dispositivo (Actualización nocturna → «Tu IA para leer boletas»). Funciona incluso sin planilla.
+3. **Lectura nocturna de Gmail (opcional).** Google exige una auditoría de seguridad pagada para que una app lea Gmail, así que esto sigue requiriendo el script en tu planilla (con tu propio permiso, de solo lectura):
+   - Si te conectaste con Google: Actualización nocturna explica cómo agregar el script a tu misma planilla.
+   - O desde cero: **Crear mi planilla con script** → **Hacer una copia** → menú **MiSaldo → Conectar con la app** → implementar como «Aplicación web» (solo la primera vez) → **Abrir MiSaldo y conectar**. En otro dispositivo, pega el **código de conexión** (`MS1.…`).
+4. Con el script, elige la modalidad nocturna y autoriza Gmail:
    - **Google (gratis):** el permiso de Gmail (solo lectura) se otorga al ejecutar `instalar`; la app lo comprueba con «Probar acceso a Gmail». La IA puede ser una clave gratuita de Gemini.
    - **Claude:** requiere Claude Pro o superior (la cuenta gratuita no permite tareas programadas). Gmail se autoriza en el conector de claude.ai.
-4. En «Qué correos leer y cuándo» elige los bancos, agrega remitentes propios, decide si leer solo esos remitentes y, opcionalmente, limita a una etiqueta de Gmail.
-5. Revisa la instrucción y pulsa **Validar y activar**.
-6. En la modalidad Claude, crea la tarea en claude.ai con la instrucción aprobada:
+5. En «Qué correos leer y cuándo» elige los bancos, agrega remitentes propios, decide si leer solo esos remitentes y, opcionalmente, limita a una etiqueta de Gmail.
+6. Revisa la instrucción y pulsa **Validar y activar**.
+7. En la modalidad Claude, crea la tarea en claude.ai con la instrucción aprobada:
    - Gmail como único conector.
    - Las variables de entorno `MISFINANZAS_URL` y `MISFINANZAS_IMPORT_TOKEN`.
    - Acceso de red a `script.google.com` y `script.googleusercontent.com`.
@@ -133,7 +133,7 @@ Para probar `out/` localmente en http://localhost:4000/MisFinanzas/:
 node scripts/serve-pages.mjs
 ```
 
-**Pruebas (36)**
+**Pruebas (39)**
 
 - **Del script** (`tests/apps-script/`): ejecutan el `Code.gs` real sobre un simulador de los servicios de Google (hojas, propiedades, disparadores, Gmail, UrlFetch y correo). Cubren:
   - instalación y tokens;
@@ -153,14 +153,25 @@ node scripts/serve-pages.mjs
   - el horario de Santiago con cambio de horario;
   - qué correos se leen: bancos desmarcados, remitentes propios, «solo estos remitentes» y etiqueta de Gmail;
   - la foto de boleta: la imagen va a la IA del usuario, el total se valida y lo dudoso se marca para revisar;
-  - el código de conexión (el del script lo entiende la app y solo acepta direcciones de Apps Script) y que una copia de la planilla no herede tokens ni claves.
+  - el código de conexión (el del script lo entiende la app y solo acepta direcciones de Apps Script) y que una copia de la planilla no herede tokens ni claves;
+  - la planilla directa con Google: la app escribe filas idénticas a las del script, gana el cambio más reciente, y la boleta leída en el dispositivo se valida igual que en el script.
 - **De la app** (`tests/`): dinero exacto, reglas, totales, período mensual, CSV, validación de la URL del script, panel, alertas, correcciones bloqueadas, reclasificación masiva con vista previa y deshacer.
+
+### Inicio de sesión con Google (dueño de la app)
+
+«Continuar con Google» necesita un ID de cliente OAuth en `lib/config.ts` (`GOOGLE_CLIENT_ID`). Mientras esté vacío, el botón no aparece. Para crearlo (una vez, gratis):
+
+1. En [console.cloud.google.com](https://console.cloud.google.com) crea un proyecto «MiSaldo».
+2. **APIs y servicios → Biblioteca:** habilita **Google Drive API** y **Google Sheets API**.
+3. **Pantalla de consentimiento de OAuth** (Google Auth Platform): tipo **Externo**, nombre «MiSaldo», tu correo de soporte, página principal `https://jagsantander.github.io/MisFinanzas/`, política de privacidad `https://jagsantander.github.io/MisFinanzas/privacidad/` y condiciones `https://jagsantander.github.io/MisFinanzas/condiciones/`. Permisos: `drive.file`, `openid` y `email` (no son sensibles: no requieren revisión de Google). En **Público**, pulsa **Publicar app** para pasarla a **En producción** (en «Prueba» solo entran los usuarios de prueba que agregues).
+4. **Clientes → Crear cliente:** tipo **Aplicación web**, origen de JavaScript autorizado `https://jagsantander.github.io` (y `http://localhost:3100` para desarrollo). No hace falta URI de redirección.
+5. Copia el **ID de cliente** (`…apps.googleusercontent.com`; es público, no es un secreto) en `GOOGLE_CLIENT_ID`.
 
 ### Plantilla de la planilla (dueño de la app)
 
 El botón «Crear mi planilla» abre el enlace de copia de una planilla plantilla, definido en `lib/config.ts` (`SHEET_TEMPLATE_COPY_URL`). Para crearla o actualizarla:
 
-1. Crea una planilla vacía llamada «Mi saldo» y, en Extensiones → Apps Script, pega `Code.gs` y `appsscript.json`. **No ejecutes nada en la plantilla.**
+1. Crea una planilla vacía llamada «MiSaldo» y, en Extensiones → Apps Script, pega `Code.gs` y `appsscript.json`. **No ejecutes nada en la plantilla.**
 2. Compártela como «Cualquier persona con el enlace: Lector».
 3. Usa `https://docs.google.com/spreadsheets/d/<ID>/copy` como `SHEET_TEMPLATE_COPY_URL`.
 4. Cuando cambie `Code.gs`, pégalo también en la plantilla. Las copias existentes se actualizan con el aviso «Actualiza el script» de la app.
@@ -180,7 +191,7 @@ La publicación es automática: al subir cambios a `main`, el workflow `.github/
 `android/` contiene una Trusted Web Activity que abre la app publicada. Para compilarla:
 
 ```bash
-./android/build-apk.sh https://jagsantander.github.io/MisFinanzas/ 1.2.0 4
+./android/build-apk.sh https://jagsantander.github.io/MisFinanzas/ 1.3.0 5
 ```
 
 Para ocultar la barra de direcciones, Android exige un archivo `assetlinks.json` en `https://jagsantander.github.io/.well-known/assetlinks.json`, es decir, en la raíz del dominio. En GitHub Pages eso requiere un repositorio llamado `jagsantander.github.io`. Sin ese archivo, la app funciona igual, pero muestra la barra con la URL.
@@ -194,6 +205,6 @@ Para ocultar la barra de direcciones, Android exige un archivo `assetlinks.json`
 - **Sin notificaciones push**, porque necesitan un servidor que las envíe. Hay avisos dentro de la app y por correo, enviados por el script respetando el horario de silencio.
 - **Hora aproximada en la modalidad Google:** Apps Script ejecuta los disparadores dentro de una ventana de unos 15 minutos.
 - **Límites diarios de Google:** Apps Script tiene cuotas (tiempo de ejecución, UrlFetch, correos). Para uso personal sobran, pero se pueden alcanzar con más de unos cientos de correos por noche.
-- **La tarea de Claude no se puede verificar ni administrar desde Mi saldo.** Pausar o cancelar en la app bloquea las importaciones, pero la tarea hay que pausarla o eliminarla en claude.ai.
+- **La tarea de Claude no se puede verificar ni administrar desde MiSaldo.** Pausar o cancelar en la app bloquea las importaciones, pero la tarea hay que pausarla o eliminarla en claude.ai.
 - **Sin conversión de monedas.** Las otras monedas se muestran aparte y no se suman.
 - **Textos legales:** son una base. Revísalos con asesoría legal antes de ofrecer la app a terceros.
