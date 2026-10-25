@@ -1,0 +1,61 @@
+# Publica MisFinanzas en GitHub Pages cada vez que se suben cambios a main.
+# Corre la revisión de tipos y las pruebas; si algo falla, no se publica nada.
+# Pages sirve la rama gh-pages, así que el workflow la actualiza con el contenido de out/.
+name: Publicar en GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Una publicación a la vez; si llega otro cambio, espera a que termine la anterior.
+concurrency:
+  group: publicar-pages
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Revisar tipos
+        run: npm run typecheck
+
+      - name: Pruebas
+        run: npm test
+
+      - name: Compilar para GitHub Pages
+        run: npm run build:pages
+
+      - name: Publicar en la rama gh-pages
+        env:
+          SHA: ${{ github.sha }}
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch --depth 1 origin gh-pages:refs/remotes/origin/gh-pages
+          git worktree add pages origin/gh-pages
+          # Reemplaza todo el contenido publicado por la nueva compilación.
+          find pages -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -R out/. pages/
+          cd pages
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Sin cambios en la página publicada."
+            exit 0
+          fi
+          git commit -m "Publicar ${SHA::7}"
+          git push origin HEAD:gh-pages

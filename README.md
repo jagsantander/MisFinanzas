@@ -145,7 +145,9 @@ node scripts/serve-pages.mjs
 
 ### Publicar
 
-GitHub Pages sirve la rama `gh-pages`, que contiene lo compilado en `out/` (incluido `.nojekyll`). Cada vez que cambies la app, compila de nuevo y publica `out/` en esa rama.
+GitHub Pages sirve la rama `gh-pages`, que contiene lo compilado en `out/` (incluido `.nojekyll`).
+
+La publicación es automática: al subir cambios a `main`, el workflow `.github/workflows/publicar.yml` revisa los tipos, corre las pruebas, compila y reemplaza el contenido de `gh-pages`. Si algo falla, no se publica nada. Puedes ver cada corrida en la pestaña **Actions** del repositorio, y también lanzarla a mano desde ahí («Run workflow»).
 
 ---
 
