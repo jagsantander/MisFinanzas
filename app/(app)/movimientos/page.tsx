@@ -7,6 +7,7 @@ import { Icon } from "@/components/Icon";
 import { Empty, ErrorState, Loading, Money, Sheet } from "@/components/ui";
 import { MovementItem, type Cat, type Mv } from "@/components/MovementItem";
 import { useMe } from "@/components/AppShell";
+import { exportData } from "@/lib/local/api";
 
 type Resp = { movements: Mv[]; totals: { income: string; expense: string; balance: string; reviewCount: number; otherCurrencies: Record<string, unknown> }; accounts: string[]; truncated: boolean };
 const FILTER_KEYS = ["from", "to", "kind", "type", "categoryId", "subcategoryId", "account", "source", "revision", "q", "deleted"] as const;
@@ -97,7 +98,7 @@ function MovementsInner() {
                   {data.movements.map((m) => {
                     const t = movementTone(m.kind);
                     return (
-                      <tr key={m.id} onClick={() => router.push(`/movimientos/${m.id}`)} tabIndex={0} onKeyDown={(e) => e.key === "Enter" && router.push(`/movimientos/${m.id}`)} style={{ opacity: m.excluded ? .6 : 1 }}>
+                      <tr key={m.id} onClick={() => router.push(`/movimientos/detalle?id=${m.id}`)} tabIndex={0} onKeyDown={(e) => e.key === "Enter" && router.push(`/movimientos/detalle?id=${m.id}`)} style={{ opacity: m.excluded ? .6 : 1 }}>
                         <td className="tabular">{m.occurredOn} {m.occurredTime ?? ""}</td>
                         <td style={{ maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis" }}>{m.merchant || m.description}</td>
                         <td>{catName(m.categoryId)}{m.subcategoryId ? ` › ${catName(m.subcategoryId)}` : ""}</td>
@@ -116,8 +117,8 @@ function MovementsInner() {
           </>
         ))}
         <div className="row" style={{ flexWrap: "wrap" }}>
-          <a className="btn sm" href={`/api/export?format=xlsx&${params}`}><Icon name="download" size={18} /> Excel</a>
-          <a className="btn sm" href={`/api/export?format=csv&${params}`}><Icon name="download" size={18} /> CSV</a>
+          <button className="btn sm" onClick={() => exportData("xlsx", Object.fromEntries(params))}><Icon name="download" size={18} /> Excel</button>
+          <button className="btn sm" onClick={() => exportData("csv", Object.fromEntries(params))}><Icon name="download" size={18} /> CSV</button>
           <Link className="btn sm ghost" href="/movimientos?deleted=1">Ver eliminados</Link>
         </div>
       </div>

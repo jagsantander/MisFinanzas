@@ -1,16 +1,16 @@
 import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
-import { headers } from "next/headers";
 import "./globals.css";
 
+const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 const font = Plus_Jakarta_Sans({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
 
 export const metadata: Metadata = {
   title: { default: "MisFinanzas", template: "%s · MisFinanzas" },
   description: "Controla tus ingresos y gastos personales",
-  manifest: "/manifest.webmanifest",
+  manifest: `${BASE}/manifest.webmanifest`,
   appleWebApp: { capable: true, title: "MisFinanzas", statusBarStyle: "default" },
-  icons: { icon: "/icons/icon-192.png", apple: "/icons/apple-touch-icon.png" },
+  icons: { icon: `${BASE}/icons/icon-192.png`, apple: `${BASE}/icons/apple-touch-icon.png` },
 };
 
 export const viewport: Viewport = {
@@ -21,11 +21,10 @@ export const viewport: Viewport = {
 // Aplica el tema guardado antes de pintar (evita parpadeo).
 const themeScript = `try{var t=localStorage.getItem('mf-theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}`;
 
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const nonce = (await headers()).get("x-nonce") ?? undefined;
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es-CL" className={font.variable} suppressHydrationWarning>
-      <head><script nonce={nonce} dangerouslySetInnerHTML={{ __html: themeScript }} /></head>
+      <head><script dangerouslySetInnerHTML={{ __html: themeScript }} /></head>
       <body>{children}</body>
     </html>
   );

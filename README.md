@@ -1,361 +1,173 @@
 # MisFinanzas
 
-Aplicación web instalable (PWA) para controlar ingresos y gastos personales. Cada usuario conecta **su propio correo** (Gmail u Outlook, vía OAuth, solo lectura) y **su propio proveedor de IA** (OpenAI, Anthropic o Google Gemini, con su clave de API). Una actualización nocturna, validada explícitamente por el usuario, analiza los avisos financieros, actualiza la planilla y recalcula presupuestos y alertas.
+App gratuita para controlar ingresos y gastos personales. Es una PWA instalable, pensada primero para el celular, en español y con pesos chilenos (`$1.650.000`) por defecto.
 
-Español y pesos chilenos por defecto (`$1.650.000`), tema claro/oscuro/sistema, diseño pensado primero para celular.
+**MisFinanzas no tiene servidor.** La app es una página estática en GitHub Pages:
+
+- Cada usuario guarda sus datos en **su propia planilla de Google Sheets**, con una copia en su dispositivo.
+- La **actualización nocturna** corre en la cuenta de cada usuario, en su cuenta de Google o en su cuenta de Claude, nunca en un servidor de MisFinanzas.
+
+Publicada en: **https://jagsantander.github.io/MisFinanzas/**
 
 ---
 
-## Arquitectura
+## Cómo funciona
 
-**Next.js 16 (App Router) + PostgreSQL (Drizzle ORM) + worker en Node.js**: un solo repositorio TypeScript con tres procesos.
+```
+┌──────────────────────┐   token de la app    ┌───────────────────────────────┐
+│  App (GitHub Pages)  │ ───────────────────▶ │  Planilla de Google del       │
+│  PWA · datos locales │ ◀─────────────────── │  usuario + script (Apps Script)│
+│  (IndexedDB)         │   sincronización     │  hojas: Movimientos, Reglas…  │
+└──────────────────────┘                      └───────────────▲───────────────┘
+                                                              │
+                  Modalidad Google                            │ Modalidad Claude
+   disparador diario del script: lee Gmail ─────────┘   tarea programada en claude.ai:
+   y llama a la IA del usuario (su clave)                lee Gmail con su conector y envía
+                                                         los movimientos (token de importación)
+```
 
-| Proceso | Qué hace |
-|---|---|
-| `next start` | Interfaz (React) y API (`app/api/**`). |
-| `npm run worker` | Planificador y cola de tareas. Debe correr **siempre**: ejecuta las actualizaciones nocturnas y envía notificaciones push/correo. |
-| PostgreSQL | Fuente de verdad: datos, cola de tareas (`jobs`), estado por mensaje, auditoría. |
+| Pieza | Dónde vive | Costo |
+|---|---|---|
+| App web / PWA | GitHub Pages (`out/`, exportación estática de Next.js) | Gratis |
+| Datos | Planilla de Google Sheets del usuario + copia en IndexedDB | Gratis |
+| API de la planilla | `apps-script/Code.gs`, implementado por el usuario como «Aplicación web» | Gratis |
+| Nocturna, modalidad Google | Disparador diario del mismo script; lee Gmail con permiso de solo lectura | Gratis con el nivel gratuito de la API de Gemini, o lo que cobre OpenAI o Anthropic |
+| Nocturna, modalidad Claude | Tarea programada en claude.ai/code/routines | Incluida en Claude Pro o superior |
 
-Por qué esta elección: un solo lenguaje y despliegue simple. La cola vive en Postgres (`FOR UPDATE SKIP LOCKED`), así que no hace falta Redis. Las restricciones únicas de la BD garantizan la idempotencia: ningún reintento duplica corridas, movimientos ni alertas.
+### Por qué así
 
-Módulos (`lib/`):
+- **Sin servidor que pagar ni mantener.** La única «infraestructura» es la cuenta de Google de cada usuario.
+- **La ejecución nocturna depende de la cuenta del usuario**, como se pidió:
+  - con la modalidad Claude, la tarea corre en la nube de Anthropic;
+  - con la modalidad Google, corre en Google, con la IA que el usuario elija.
+- **Las APIs de OpenAI, Anthropic y Gemini no permiten crear tareas programadas.** Esto se revisó en la documentación de octubre de 2026. Por eso, en la modalidad Claude el usuario crea la tarea en claude.ai con la instrucción aprobada; MisFinanzas no puede crearla ni verla.
 
-| Área | Ubicación |
-|---|---|
-| Autenticación, sesiones, passkeys, límites de intentos | `lib/auth/*`, `app/api/auth/**` |
-| Usuarios y preferencias | `app/api/me`, `lib/period.ts` |
-| Conectores de correo (Gmail, Microsoft Graph) | `lib/mail/*` |
-| Adaptadores de IA (OpenAI Responses, Anthropic Messages, Gemini generateContent) | `lib/ai/*` |
-| Instrucciones y aprobaciones | `lib/automation/config.ts`, `instruction.ts`, `service.ts` |
-| Programación y cola | `lib/automation/schedule.ts`, `lib/jobs/queue.ts`, `worker/index.ts` |
-| Ejecución nocturna | `lib/automation/runner.ts` |
-| Extracción y validación | `lib/extraction/*` |
-| Reglas y clasificación | `lib/movements/rules.ts`, `app/api/movements/bulk` |
-| Movimientos e informes | `lib/movements/*`, `lib/export.ts` |
-| Presupuestos y alertas | `lib/budgets/*` |
-| Notificaciones | `lib/notifications/*`, `public/sw.js` |
-| Auditoría y consumo | `lib/audit.ts`, tabla `ai_usage`, `app/api/usage` |
+### Seguridad
 
-Modelo de datos: `lib/db/schema.ts`. Migraciones: `drizzle/`.
-
-### Principios aplicados
-
-- **La IA interpreta; el servidor decide.** Las respuestas usan salidas estructuradas (JSON Schema) y se validan en el servidor:
-  - el monto debe aparecer literalmente en el correo;
-  - las fechas deben ser coherentes;
-  - la moneda debe estar soportada;
-  - la categoría debe existir.
-  
-  Los casos dudosos van a «Por revisar» con su motivo.
+- **El token de la app** da acceso completo a la planilla.
+  - Se guarda solo en el dispositivo del usuario.
+  - Viaja en el cuerpo de un POST, nunca en la URL.
+  - La app solo lo envía a direcciones `https://script.google.com/macros/s/…/exec`. Lo exigen tanto la validación del código como la CSP.
+- **El token de importación** (el que usa la tarea de Claude) solo permite agregar movimientos y consultar qué correos ya se procesaron. No sirve para leer datos ni para cambiar la configuración.
+- **La clave de IA** se guarda en las *propiedades privadas* del script. No queda en la planilla, en el dispositivo ni en la instrucción.
 - **Los correos son contenido no confiable.**
-  - Se reducen antes de enviarse: sin enlaces, adjuntos ni imágenes, con tarjetas y RUT enmascarados y un máximo de 6.000 caracteres.
-  - Van delimitados como dato, después de la instrucción aprobada.
-  - Nunca se abren enlaces ni adjuntos.
-- **Credenciales del propietario.**
-  - Toda llamada a la IA pasa por `callUserAi(db, ownerUserId, …)`, que usa solo la clave de ese usuario. No existe una clave de respaldo del administrador.
-  - Las claves y tokens se cifran con AES-256-GCM, con un AAD ligado a usuario y conexión: un blob copiado a otro usuario no se puede descifrar.
-- **Montos exactos.** `bigint` en unidades mínimas; nunca se usa float. No se suman monedas distintas.
-- **Prioridad de clasificación.** 1) corrección manual (campos bloqueados), 2) reglas del usuario, 3) IA. Una sincronización solo agrega movimientos nuevos. Los eliminados quedan como «lápida» y no se reimportan.
-
-### Programación en el proveedor de IA
-
-Se revisó la documentación oficial vigente (octubre de 2026):
-
-- **OpenAI** (Responses API), **Anthropic** (Messages API) y **Google Gemini API**: ninguna ofrece, con una clave de API, un endpoint para **crear tareas programadas en la cuenta del usuario**.
-- Las tareas de ChatGPT, las *scheduled actions* de Gemini y las *routines* de Claude se crean desde sus propias interfaces.
-
-Por eso la modalidad siempre es **ejecución desde MisFinanzas**: el worker llama a la IA del usuario con la instrucción aprobada. La interfaz lo muestra antes de pedir la validación y nunca afirma haber creado una tarea en el proveedor. Como solo existe esta modalidad, la misma automatización no puede quedar activa a la vez en el proveedor y en MisFinanzas.
-
-El adaptador declara `nativeScheduling: false`. La columna `automations.external_task_id` queda reservada por si algún proveedor publica esa capacidad.
-
-### Instrucción nocturna y aprobación
-
-1. Al conectar la IA, `generateInstructionVersion` le pide **solo** lo personalizable: resumen, pautas de clasificación, criterios de ambigüedad y pistas de comercios. La respuesta se valida y se filtra: se rechazan enlaces, credenciales y acciones como «reenvía» o «transfiere».
-2. Esa respuesta se incrusta en una plantilla controlada por MisFinanzas con las 16 secciones requeridas, incluidas las restricciones de seguridad fijas.
-3. Cada versión guarda una instantánea de la configuración y su `configHash`. La configuración incluye proveedor, modelo, cuenta, permisos, horario, alcance y destino de datos. No incluye reglas, categorías ni presupuestos.
-4. «Validar y activar» exige una casilla explícita sin marcar previamente. Solo aprueba si el hash coincide con la configuración actual. Guarda el texto exacto, la fecha, el usuario y el agente de usuario.
-5. Antes de cada corrida, `preflight` vuelve a comparar el hash. Si algo cambió, la automatización pasa a «pendiente de validación» y la ejecución automática se bloquea.
-
-### Ejecución nocturna
-
-Por defecto se ejecuta a las 03:00 en `America/Santiago`, con Luxon y la zona horaria del usuario:
-
-- `slotKey` = fecha local, con índice único: como máximo una corrida programada por día y sin omisiones en los cambios de horario.
-- Si el worker estuvo detenido, se hace una sola puesta al día y la ventana incremental cubre el período sin correos.
-- Un índice único parcial impide dos corridas `running` por cuenta. «Ejecutar ahora» se rechaza si ya hay una en cola o en curso.
-
-Cada corrida:
-
-1. Lista los correos desde la última sincronización exitosa, menos 48 h de solapamiento.
-2. Preselecciona los posibles avisos financieros sin usar IA (dominios bancarios y palabras clave).
-3. Analiza con concurrencia 2, reintentos y un tiempo máximo de 15 min.
-4. Guarda el estado por mensaje en `processed_messages`. Los fallidos **no** se marcan como procesados y se reintentan hasta 4 veces.
-5. Ante falta de saldo, credencial inválida o límite alcanzado: pausa, conserva el progreso y avisa. Nunca cambia de cuenta ni de proveedor.
-6. Recalcula presupuestos y alertas con código, sin IA.
-
-Las alertas se avisan una vez por (presupuesto, período, umbral). Si se cruzan varios umbrales en una corrida, se envía un solo aviso. Solo se evalúa el período actual, así que importar meses históricos no genera avisos masivos. Los avisos externos respetan el horario de silencio (por defecto 22:00–08:00).
+  - Se reducen antes de enviarse a la IA: sin enlaces ni adjuntos, con tarjetas y RUT enmascarados y un máximo de 6.000 caracteres.
+  - Van delimitados como dato, nunca como instrucción.
+  - El script valida cada operación: el monto debe aparecer en el correo, la fecha debe ser coherente y la categoría debe existir. Lo dudoso queda «Por revisar».
+- **La aprobación es explícita.**
+  - La instrucción se genera desde una plantilla con restricciones fijas.
+  - Se aprueba con una casilla sin marcar de antemano.
+  - Se guarda con su versión, hash, fecha y usuario en la hoja «Instrucciones».
+  - Si cambian la modalidad, el modelo, la cuenta, el horario o el alcance, el hash cambia, el disparador se elimina y se exige una nueva aprobación.
+- **Sin duplicados.**
+  - Hay una sola corrida programada por fecha local.
+  - Los correos procesados se registran en la hoja «Correos».
+  - Las devoluciones se vinculan al gasto original y los posibles duplicados quedan para revisión.
+  - Los ids de las alertas son deterministas, así que la app y el script no repiten avisos.
+- **Las correcciones manuales nunca se sobrescriben**, y los movimientos eliminados no se reimportan.
+- **La CSP** se inserta en cada página con hashes SHA-256 de los scripts en línea (`scripts/postbuild-csp.mjs`) y `connect-src` limitado a Google Apps Script.
+- **El bloqueo opcional** usa la huella, el rostro o el PIN del dispositivo (WebAuthn de plataforma) y no recibe datos biométricos. Es una barrera de uso, no cifrado.
 
 ---
 
-## Puesta en marcha local
+## Uso (para cada persona)
 
-Requisitos: Node.js 22 o superior.
+1. Abre la app y sigue la bienvenida.
+2. **Crea tu planilla.** La app te guía y tiene botones para copiar el código:
+   1. Crea una planilla en sheets.new y abre Extensiones → Apps Script.
+   2. Pega `Code.gs` y el manifiesto `appsscript.json`.
+   3. Ejecuta `instalar` y autoriza los permisos. Verás «Google no verificó esta app» porque el script es tuyo y no está publicado.
+   4. Implementa la «Aplicación web» con «Ejecutar como: Yo» y «Quién tiene acceso: Cualquier usuario».
+   5. Copia la URL y el token (menú MisFinanzas → Mostrar datos de conexión).
+3. Elige la modalidad nocturna (Google o Claude), revisa la instrucción y pulsa **Validar y activar**.
+4. En la modalidad Claude, crea la tarea en claude.ai con la instrucción aprobada:
+   - Gmail como único conector.
+   - Las variables de entorno `MISFINANZAS_URL` y `MISFINANZAS_IMPORT_TOKEN`.
+   - Acceso de red a `script.google.com` y `script.googleusercontent.com`.
+
+Si prefieres, puedes usar la app sin planilla: los datos quedan solo en ese dispositivo.
+
+---
+
+## Desarrollo
+
+Requisito: Node.js 22 o superior.
+
+Instala las dependencias:
 
 ```bash
 npm install
 ```
 
-```bash
-cp .env.example .env.local
-```
-
-Completa en `.env.local`:
-
-- `ENCRYPTION_KEY` y `SESSION_SECRET`: genera cada una con `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`.
-- `VAPID_PUBLIC_KEY` y `VAPID_PRIVATE_KEY`: genéralas con `npx web-push generate-vapid-keys`.
-
-En una terminal, levanta un Postgres local (en el puerto 5433, sin Docker):
-
-```bash
-npm run db:local
-```
-
-En otra terminal, aplica las migraciones:
-
-```bash
-npm run db:migrate
-```
-
-Luego inicia la app y el worker, cada uno en su propia terminal:
+Levanta el entorno de desarrollo:
 
 ```bash
 npm run dev
 ```
 
-```bash
-npm run worker
-```
-
-Sin `SMTP_URL`, los correos de verificación y recuperación **no se envían**: quedan en `/dev-outbox`, que solo existe fuera de producción, y la interfaz lo indica.
-
-### Pruebas
+Corre las pruebas:
 
 ```bash
 npm test
 ```
 
-Las pruebas (38) corren contra un Postgres real (`misfinanzas_test`, creado por `npm run db:local`). Simulan solo la frontera HTTP: adaptadores de IA y conectores de correo. Cubren:
+Compila la versión para GitHub Pages (queda en `out/`):
 
-- formato monetario y porcentajes;
-- horario de Santiago al entrar y salir del horario de verano;
-- horario de silencio;
-- validación de la extracción (montos inventados, rechazadas, pendientes, fechas);
-- minimización del contenido y delimitación frente a inyección de instrucciones;
-- generación, aprobación y renovación de la instrucción ante cambios de alcance;
-- pausa, reanudación y cancelación;
-- ausencia de corridas duplicadas y reclamo único de tareas por varios workers;
-- extremo a extremo con **dos usuarios** (Gmail + Anthropic y Outlook + OpenAI):
-  - varias operaciones por correo, rechazadas y publicidad;
-  - compra con tarjeta y pago de la tarjeta, devolución relacionada, transferencia propia;
-  - duplicado por id de operación;
-  - reimportación sin duplicados, correcciones manuales conservadas y eliminados no revividos;
-  - uso exclusivo de las credenciales del propietario y aislamiento de contenido y consumo;
-- fallo de IA: el mensaje no se marca como procesado, se pausa, se reintenta y se reanuda;
-- límite de consumo;
-- presupuestos y alertas sin duplicados;
-- exportación CSV (inyección de fórmulas);
-- cifrado ligado al propietario;
-- contraseñas, enlaces de un solo uso y vencidos, bloqueo por intentos y desafíos WebAuthn de un solo uso.
+```bash
+npm run build:pages
+```
 
----
+Para probar `out/` localmente en http://localhost:4000/MisFinanzas/:
 
-## Configuración de integraciones externas (pendiente por operador)
+```bash
+node scripts/serve-pages.mjs
+```
 
-### Gmail (Google Cloud)
+**Pruebas (28)**
 
-1. Crea un proyecto en Google Cloud Console y habilita la **Gmail API**.
-2. En la pantalla de consentimiento OAuth, agrega el scope `https://www.googleapis.com/auth/gmail.readonly`.
-3. Crea un cliente OAuth de tipo «Aplicación web» con este URI de redirección: `https://TU_DOMINIO/api/connections/mail/callback`.
-4. Define `GOOGLE_CLIENT_ID` y `GOOGLE_CLIENT_SECRET`.
-5. `gmail.readonly` es un **scope restringido**. Para usuarios fuera de la lista de prueba, Google exige verificación de la app y una evaluación de seguridad (CASA). Mientras tanto, solo los usuarios de prueba que registres podrán conectar el correo.
+- **Del script** (`tests/apps-script/`): ejecutan el `Code.gs` real sobre un simulador de los servicios de Google (hojas, propiedades, disparadores, Gmail, UrlFetch y correo). Cubren:
+  - instalación y tokens;
+  - límite de intentos;
+  - el token de importación, que no da acceso a los datos;
+  - sincronización con last-write-wins;
+  - aprobación explícita y creación del disparador real;
+  - que un cambio de horario invalida la aprobación;
+  - importación desde Gmail, con rechazadas, duplicados por id de operación y montos inventados que quedan «Por revisar»;
+  - que no se reanaliza lo ya procesado;
+  - que se conservan correcciones y eliminaciones;
+  - cuota agotada: pausa sin cambiar de proveedor y reanuda;
+  - el límite de tokens;
+  - una sola corrida por día;
+  - la modalidad Claude (bloqueo antes de aprobar, validación por fragmento citado, pausa);
+  - alertas sin duplicar;
+  - el horario de Santiago con cambio de horario.
+- **De la app** (`tests/`): dinero exacto, reglas, totales, período mensual, CSV, validación de la URL del script, panel, alertas, correcciones bloqueadas, reclasificación masiva con vista previa y deshacer.
 
-### Microsoft Outlook (Entra ID)
+### Publicar
 
-1. Registra una aplicación en «App registrations». Para cuentas personales y de trabajo, usa los tipos de cuenta «Any Entra ID tenant + personal Microsoft accounts».
-2. Agrega este URI de redirección de tipo Web: `https://TU_DOMINIO/api/connections/mail/callback`.
-3. Agrega los permisos delegados `offline_access`, `User.Read` y `Mail.Read`.
-4. Crea un *client secret* y define `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` y `MICROSOFT_TENANT` (`common`).
-5. Microsoft no ofrece un endpoint para revocar el consentimiento de una sola app. Al desconectar, MisFinanzas borra los tokens y le indica al usuario dónde retirar el permiso.
-
-### Proveedores de IA
-
-No requieren configuración del operador: cada usuario ingresa su propia clave.
-
-- **OpenAI:** platform.openai.com/api-keys.
-- **Anthropic:** console.anthropic.com.
-- **Gemini:** aistudio.google.com/apikey.
-
-La app lista los modelos disponibles para cada clave. Los costos mostrados son **estimados** (`lib/ai/pricing.ts`, ajustable con `AI_PRICING_JSON`); la factura final la emite el proveedor.
-
-### Correo transaccional y push
-
-- **`SMTP_URL`:** usa cualquier proveedor SMTP (SES, Postmark, Resend, etc.). Es obligatorio en producción.
-- **Push:** necesitas las claves VAPID. En iPhone, el push requiere instalar la PWA en la pantalla de inicio (iOS 16.4 o posterior).
-
-### Passkeys
-
-`APP_URL` debe usar HTTPS en producción. El RP ID es el dominio, o el valor de `WEBAUTHN_RP_ID`. Se registra con `attestation: none` y verificación de usuario obligatoria: el dispositivo usa huella, rostro o PIN y MisFinanzas solo guarda la clave pública.
-
----
-
-## Despliegue
-
-1. Usa un PostgreSQL administrado (Neon, Supabase, RDS, Cloud SQL, etc.) y define `DATABASE_URL`.
-2. Ejecuta `npm run build` y `npm run db:migrate`, y luego `npm start` para la web.
-3. Despliega `npm run worker` como **proceso siempre activo** (worker en Railway, Render, Fly.io, ECS, un systemd en una VM, etc.). Puedes correr más de una instancia sin riesgo: el reclamo de tareas y los cupos son únicos.
-4. Define `TRUST_PROXY=1` si el servidor está detrás de un proxy de confianza.
-5. Las cabeceras de seguridad se configuran en `next.config.ts`. Las cookies de sesión son `__Host-`, `HttpOnly`, `Secure` y `SameSite=Lax`. Las solicitudes que modifican datos se validan por `Origin`.
-
-La automatización **no** depende del navegador: corre en el worker aunque el teléfono esté apagado. Si usas una plataforma *serverless* sin procesos persistentes, reemplaza el worker por un cron cada minuto que ejecute el ciclo `tick` y procese la cola. No uses temporizadores del navegador.
-
-### Railway (recomendado)
-
-Un proyecto con tres servicios, todos desde este repositorio salvo la base de datos:
-
-| Servicio | Origen | Start command | Otros ajustes |
-|---|---|---|---|
-| **Postgres** | Plantilla de base de datos de Railway | — | — |
-| **web** | Este repositorio | `npm start` | Pre-deploy command: `npm run db:migrate:prod`. Healthcheck path: `/api/health`. Dominio público: *Generate Domain*. |
-| **worker** | Este repositorio | `npm run start:worker` | Sin dominio público. Restart policy: *Always*. |
-
-En cada servicio, las variables se pegan en *Variables → Raw Editor*. La lista completa está en `.env.example`.
-
-- `DATABASE_URL=${{Postgres.DATABASE_URL}}`.
-- `APP_URL`:
-  - en web: `https://${{RAILWAY_PUBLIC_DOMAIN}}`;
-  - en el worker: `https://${{web.RAILWAY_PUBLIC_DOMAIN}}`.
-- `ENCRYPTION_KEY`, `SESSION_SECRET` y las claves VAPID deben ser **idénticas** en web y worker.
-
-### Costos de operación (orientativos)
-
-| Componente | Opción típica | Costo aproximado |
-|---|---|---|
-| Web (Next.js) | Contenedor pequeño (0,5 vCPU / 512 MB) | US$5–10 al mes |
-| Worker | Otro contenedor pequeño siempre activo | US$5–10 al mes |
-| PostgreSQL | Plan administrado básico con copias | US$0–25 al mes |
-| SMTP | Plan de entrada | US$0–15 al mes |
-| IA | Pagada por **cada usuario** a su proveedor | Con un modelo económico, unos 1.000 tokens de entrada y 150 de salida por aviso: centavos de dólar por cientos de avisos al mes |
+GitHub Pages sirve la rama `gh-pages`, que contiene lo compilado en `out/` (incluido `.nojekyll`). Cada vez que cambies la app, compila de nuevo y publica `out/` en esa rama.
 
 ---
 
 ## App Android (APK)
 
-`android/` contiene una **Trusted Web Activity (TWA)**, el formato oficial de Google para empaquetar una PWA como app Android, con la librería `androidbrowserhelper` 2.7.4.
-
-- La app abre MisFinanzas en Chrome (u otro navegador compatible) a pantalla completa. Mantiene passkeys, notificaciones push (delegadas a la app) y cookies seguras, que un WebView no garantiza.
-- La lógica sigue en el servidor. Para actualizar la interfaz basta con desplegar la web; solo cambiar la URL, el icono o el nombre exige recompilar.
-- Requiere Android 7.0 o superior (minSdk 24); targetSdk 36. Paquete: `cl.misfinanzas.app`.
-
-### Compilar
-
-Requisitos: JDK 17, Android SDK (`platforms;android-36` y `build-tools;36.0.0`) y Gradle 8.14 o superior. Para compilar, ejecuta:
+`android/` contiene una Trusted Web Activity que abre la app publicada. Para compilarla:
 
 ```bash
-./android/build-apk.sh https://misfinanzas.tudominio.cl 1.0.0 1
+./android/build-apk.sh https://jagsantander.github.io/MisFinanzas/ 1.1.0 3
 ```
 
-- Los argumentos son la URL, `versionName` y `versionCode`. En cada actualización, sube `versionCode`.
-- La primera vez se crea la clave de firma en `android/keystore/` y `android/keystore.properties`. **Respáldalas en un lugar seguro:** sin esa clave no podrás publicar actualizaciones que se instalen sobre la app existente.
-- El script deja la APK en `dist/MisFinanzas-<versión>.apk` e imprime los valores de `ANDROID_PACKAGE_NAME` y `ANDROID_CERT_SHA256`.
-
-### Verificar el dominio (obligatorio para ocultar la barra de direcciones)
-
-1. Define `ANDROID_PACKAGE_NAME` y `ANDROID_CERT_SHA256` en el servidor web. La app los publica en `https://TU_DOMINIO/.well-known/assetlinks.json`.
-2. Compruébalo con la [herramienta de Google](https://developers.google.com/digital-asset-links/tools/generator).
-3. Si publicas en Google Play con «Play App Signing», agrega también la huella SHA-256 de la clave de firma de Google Play, separada por coma.
-
-Si el dominio no está verificado, la app igual funciona, pero muestra una barra con la URL arriba.
-
-### Seguridad en el teléfono
-
-**Permisos:** la app pide solo internet y notificaciones. No usa cámara, ubicación, contactos, SMS, almacenamiento ni accesibilidad, y no trae código nativo propio.
-
-**Contenido web:**
-- MisFinanzas corre en el navegador del sistema, aislado. No hay WebView ni puentes JavaScript↔Android que una página pueda abusar.
-- La librería TWA solo abre URLs `https` del dominio verificado. Otra app no puede usar MisFinanzas para mostrar un sitio de phishing con su nombre.
-
-**Componentes expuestos a otras apps:**
-- Lanzador: solo abre el dominio propio.
-- Servicio de delegación: solo responde al navegador verificado.
-- Acceso directo: descarta URLs ajenas.
-
-El resto de los componentes (proveedor de archivos, permisos de notificación) no son exportados.
-
-**Red y datos locales:**
-- Prohíbe HTTP sin cifrar y no confía en certificados instalados por el usuario, lo que dificulta interceptar el tráfico.
-- Sin copias en la nube ni transferencia entre dispositivos (`allowBackup=false` y `dataExtractionRules`).
-- El build de release no es depurable.
-- El navegador guarda solo la cookie de sesión (HttpOnly) y la preferencia de tema. El service worker no guarda en caché datos financieros.
-
-**Web (`proxy.ts`):**
-- Content-Security-Policy con nonce por solicitud, sin scripts inline sin nonce y con `connect-src 'self'`. Si llegara a inyectarse HTML desde un correo, no podría ejecutar scripts ni enviar datos a otros dominios.
-- HSTS y `X-Frame-Options: DENY`.
-- La redirección tras iniciar sesión solo acepta rutas internas.
-- El service worker solo abre rutas del propio sitio desde una notificación.
-
-**Notificaciones:** por defecto muestran un texto genérico, sin montos, en la pantalla bloqueada.
-
-### Instalar la APK directamente (sin Google Play)
-
-1. Copia el archivo `.apk` al teléfono.
-2. Ábrelo y autoriza «Instalar apps desconocidas» para el navegador o el gestor de archivos que estés usando.
-3. Abre MisFinanzas desde el menú de apps.
-
-Para Google Play se recomienda generar un `.aab` con `gradle bundleRelease`, con los mismos parámetros que usa `build-apk.sh`.
+Para ocultar la barra de direcciones, Android exige un archivo `assetlinks.json` en `https://jagsantander.github.io/.well-known/assetlinks.json`, es decir, en la raíz del dominio. En GitHub Pages eso requiere un repositorio llamado `jagsantander.github.io`. Sin ese archivo, la app funciona igual, pero muestra la barra con la URL.
 
 ---
 
-## Copias de seguridad y restauración
+## Limitaciones
 
-Requieren el cliente PostgreSQL (`pg_dump`/`pg_restore`, en la misma versión mayor que el servidor), disponible en el PATH o mediante `PG_DUMP_PATH` y `PG_RESTORE_PATH`.
-
-Para crear una copia (queda en `backups/misfinanzas-AAAAMMDD-HHMMSS.dump`):
-
-```bash
-npm run backup
-```
-
-Para restaurar, primero detén la web y el worker y luego ejecuta:
-
-```bash
-npm run restore -- backups/archivo.dump --yes
-```
-
-- **Respalda `ENCRYPTION_KEY` por separado** (en un gestor de secretos). La copia contiene las credenciales cifradas; sin la misma clave no se pueden leer, y los usuarios tendrían que reconectar su correo y su IA. Sus movimientos no se pierden.
-- **Rotación de clave:** mueve la clave actual a `ENCRYPTION_KEY_PREVIOUS=id:base64`, define una nueva `ENCRYPTION_KEY` y un nuevo `ENCRYPTION_KEY_ID`, y re-cifra.
-- Programa `npm run backup` (por ejemplo, a diario) o usa las copias automáticas o PITR de tu Postgres administrado. Prueba la restauración en un entorno separado periódicamente.
-- Cada usuario puede descargar su propia copia en JSON y exportar a Excel o CSV desde Perfil › Tus datos.
-
-**Retención:**
-
-- Los intentos de acceso se eliminan a los 2 días.
-- Los desafíos WebAuthn y los estados OAuth se eliminan al vencer.
-- Al eliminar una cuenta se borran en cascada todos sus datos. Antes se intenta revocar el acceso al correo.
-- No se guarda el cuerpo de los correos: solo el id del mensaje y los datos extraídos.
-
----
-
-## Limitaciones conocidas
-
-- **No es una conciliación bancaria.** Solo se detectan los movimientos informados en los correos accesibles. Las alertas se generan al sincronizar y no son en tiempo real.
-- **Conversión de monedas:** no hay una fuente configurada, así que los montos en otras monedas se muestran aparte y no se suman.
-- **Restauración de copias JSON:** la copia por usuario en JSON es solo de descarga; restaurarla no está implementado. La restauración completa se hace a nivel de base de datos.
-- **Bloqueo por inactividad en una PWA:** el servidor lo aplica según la actividad con la API. El sistema operativo puede mostrar una captura de la app en el selector de apps.
-- **Pruebas no automatizadas contra servicios reales:**
-  - la ceremonia completa de passkeys en un navegador;
-  - OAuth real con Google y Microsoft;
-  - llamadas reales a OpenAI, Anthropic y Gemini.
-  
-  Las pruebas simulan esas fronteras. Antes de producción, valida con credenciales reales.
-- **Precios de IA:** los valores de `lib/ai/pricing.ts` son referenciales; ajústalos con `AI_PRICING_JSON`.
-- **Textos legales:** las condiciones y la política de datos son una base. Revísalas con asesoría legal (Ley 19.628 y Ley 21.719).
+- **Solo Gmail.** Ninguna de las dos modalidades lee Outlook.
+- **No es conciliación bancaria.** Solo se detecta lo que llega por correo.
+- **Sin notificaciones push**, porque necesitan un servidor que las envíe. Hay avisos dentro de la app y por correo, enviados por el script respetando el horario de silencio.
+- **Hora aproximada en la modalidad Google:** Apps Script ejecuta los disparadores dentro de una ventana de unos 15 minutos.
+- **Límites diarios de Google:** Apps Script tiene cuotas (tiempo de ejecución, UrlFetch, correos). Para uso personal sobran, pero se pueden alcanzar con más de unos cientos de correos por noche.
+- **La tarea de Claude no se puede verificar ni administrar desde MisFinanzas.** Pausar o cancelar en la app bloquea las importaciones, pero la tarea hay que pausarla o eliminarla en claude.ai.
+- **Sin conversión de monedas.** Las otras monedas se muestran aparte y no se suman.
+- **Textos legales:** son una base. Revísalos con asesoría legal antes de ofrecer la app a terceros.

@@ -9,11 +9,12 @@ const ZONES = ["America/Santiago", "Pacific/Easter", "America/Punta_Arenas", "Am
 const CURRENCIES: Record<string, string> = { CLP: "Peso chileno · CLP", USD: "Dólar estadounidense · USD", EUR: "Euro · EUR" };
 
 export default function Preferences() {
-  const { me, reload } = useMe();
+  const { me } = useMe();
+  const reload = () => {};
   const toast = useToast();
   const [p, setP] = useState<any>(null);
   const [err, setErr] = useState<string | null>(null);
-  useEffect(() => { if (me && !p) setP({ currency: me.user.currency, timezone: me.user.timezone, monthStartDay: me.user.monthStartDay, theme: me.user.theme, budgetThresholds: me.user.budgetThresholds }); }, [me, p]);
+  useEffect(() => { if (me && !p) setP({ name: me.user.name, currency: me.user.currency, timezone: me.user.timezone, monthStartDay: me.user.monthStartDay, theme: me.user.theme, budgetThresholds: me.user.budgetThresholds }); }, [me, p]);
   if (!me || !p) return <main className="page"><Loading /></main>;
   async function save() {
     setErr(null);
@@ -26,6 +27,7 @@ export default function Preferences() {
       <BackLink href="/perfil" label="Perfil" />
       <h1 className="title">Preferencias</h1>
       <div className="card pad" style={{ marginTop: 12 }}>
+        <div className="field"><label htmlFor="nm">Nombre</label><input id="nm" className="input" value={p.name} onChange={(e) => setP({ ...p, name: e.target.value })} /></div>
         <div className="field"><label htmlFor="cur">Moneda principal</label><select id="cur" className="input" value={p.currency} onChange={(e) => setP({ ...p, currency: e.target.value })}>{Object.entries(CURRENCIES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
           <span className="hint">Los movimientos en otras monedas se conservan en su moneda original y no se suman sin una conversión documentada.</span></div>
         <div className="field"><label htmlFor="tz">Zona horaria</label><select id="tz" className="input" value={p.timezone} onChange={(e) => setP({ ...p, timezone: e.target.value })}>{[...new Set([p.timezone, ...ZONES])].map((z) => <option key={z}>{z}</option>)}</select></div>

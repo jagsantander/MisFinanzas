@@ -1,21 +1,18 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { api, useApi } from "@/lib/client";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useStore, withBase } from "@/lib/client";
+import { initStore } from "@/lib/local/store";
+import type { Settings } from "@/lib/local/types";
 import { Icon } from "./Icon";
-import { Notice, ToastProvider } from "./ui";
-import { passkeysSupported, unlockWithPasskey, passkeyErrorMessage } from "@/lib/passkey-client";
+import { Loading, Notice, ToastProvider } from "./ui";
+import { lockConfigured, lockMinutes, unlockWithDevice } from "@/lib/local/lock";
 
 export type Me = {
-  user: {
-    id: string; name: string; email: string; emailVerified: boolean; currency: string; timezone: string; monthStartDay: number; theme: string;
-    budgetThresholds: number[]; notifyChannels: { inApp: true; push: boolean; email: boolean }; quietStart: string; quietEnd: string;
-    hideSensitiveInPush: boolean; localLockMinutes: number | null; onboardingStep: string; onboardingCompleted: boolean; createdAt: string;
-  };
-  session: { locked: boolean; method: string };
+  user: Settings & { email: string; onboardingCompleted: boolean };
   unread: number;
-  capabilities: { emailDelivery: boolean; push: boolean; vapidPublicKey: string | null };
+  connected: boolean;
 };
 const MeCtx = createContext<{ me: Me | null; reload: () => Promise<void> }>({ me: null, reload: async () => {} });
 export const useMe = () => useContext(MeCtx);
@@ -36,36 +33,51 @@ const NAV = [
 export function AppShell({ children }: { children: ReactNode }) {
   const path = usePathname();
   const router = useRouter();
-  const { data: me, reload } = useApi<Me>("/api/me");
-  const [locked, setLocked] = useState(false);
+  const st = useStore();
+  const [locked, setLocked] = useState<boolean | null>(null);
 
-  useEffect(() => { if (me) { setLocked(me.session.locked); applyTheme(me.user.theme); } }, [me]);
+  useEffect(() => { void initStore(); }, []);
+  useEffect(() => { if (st.loaded) applyTheme(st.settings.theme); }, [st.loaded, st.settings.theme]);
   useEffect(() => {
-    const h = () => setLocked(true);
-    window.addEventListener("mf:locked", h);
-    return () => window.removeEventListener("mf:locked", h);
+    if (st.loaded && !st.settings.onboardingDone && !path.startsWith("/bienvenida")) router.replace("/bienvenida");
+  }, [st.loaded, st.settings.onboardingDone, path, router]);
+  useEffect(() => {
+    if ("serviceWorker" in navigator && process.env.NODE_ENV === "production") navigator.serviceWorker.register(withBase("/sw.js"), { scope: withBase("/") }).catch(() => {});
   }, []);
+
+  // Bloqueo local: al abrir y tras inactividad, si el usuario lo activó.
+  useEffect(() => { setLocked(lockConfigured()); }, []);
   useEffect(() => {
-    if (me && !me.user.onboardingCompleted && !path.startsWith("/bienvenida")) router.replace("/bienvenida");
-  }, [me, path, router]);
-  useEffect(() => {
-    if ("serviceWorker" in navigator && process.env.NODE_ENV === "production") navigator.serviceWorker.register("/sw.js").catch(() => {});
-  }, []);
-  // Comprueba periódicamente el bloqueo por inactividad (lo decide el servidor).
-  useEffect(() => {
-    if (!me?.user.localLockMinutes) return;
-    const t = setInterval(() => { fetch("/api/me").then((r) => r.json()).then((d) => d?.session?.locked && setLocked(true)).catch(() => {}); }, 60_000);
-    return () => clearInterval(t);
-  }, [me?.user.localLockMinutes]);
+    const minutes = lockMinutes();
+    if (!minutes) return;
+    let last = Date.now();
+    const touch = () => { last = Date.now(); };
+    const check = () => { if (Date.now() - last > minutes * 60_000) setLocked(true); };
+    const hidden = () => { if (document.visibilityState === "visible") check(); else touch(); };
+    ["pointerdown", "keydown"].forEach((e) => window.addEventListener(e, touch));
+    document.addEventListener("visibilitychange", hidden);
+    const t = setInterval(check, 30_000);
+    return () => { ["pointerdown", "keydown"].forEach((e) => window.removeEventListener(e, touch)); document.removeEventListener("visibilitychange", hidden); clearInterval(t); };
+  }, [locked]);
+
+  const me = useMemo<Me | null>(() => st.loaded ? {
+    user: { ...st.settings, email: st.account ?? "", onboardingCompleted: st.settings.onboardingDone },
+    unread: st.tables.notifications.filter((n) => !n.readAt).length,
+    connected: Boolean(st.connection),
+  } : null, [st]);
+  const reload = useCallback(async () => {}, []);
 
   const hideNav = path.startsWith("/bienvenida");
   const isActive = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
+  if (!st.loaded || locked === null) return <main className="page"><Loading rows={3} height={100} /></main>;
   return (
     <MeCtx.Provider value={{ me, reload }}>
       <ToastProvider>
         <a href="#contenido" className="sr-only">Saltar al contenido</a>
         <div className="app" style={hideNav ? { paddingLeft: 0, paddingBottom: 24 } : undefined}>
-          <div id="contenido">{locked ? <LockScreen onUnlocked={() => { setLocked(false); reload(); }} /> : children}</div>
+          <div id="contenido">
+            {locked ? <LockScreen onUnlocked={() => setLocked(false)} /> : <>{!hideNav && <SyncBanner />}{children}</>}
+          </div>
         </div>
         {!hideNav && !locked && (
           <nav className="nav" aria-label="Principal">
@@ -83,27 +95,37 @@ export function AppShell({ children }: { children: ReactNode }) {
   );
 }
 
-/** Bloqueo de una sesión ya abierta (distinto de iniciar sesión). */
+/** Aviso discreto cuando los datos no están respaldados en la planilla o la sincronización falla. */
+function SyncBanner() {
+  const st = useStore();
+  if (st.connection && !st.syncError) return null;
+  return (
+    <div className="page" style={{ paddingBottom: 0 }}>
+      {!st.connection
+        ? <Notice tone="warn"><p className="small">Tus datos están solo en este dispositivo. <Link href="/conexiones">Conecta tu planilla</Link> para respaldarlos y activar la actualización nocturna.</p></Notice>
+        : <Notice tone="danger"><p className="small">No se pudo sincronizar con tu planilla: {st.syncError}. Tus cambios quedan guardados aquí y se enviarán al reconectar.</p></Notice>}
+    </div>
+  );
+}
+
+/** Bloqueo local de la app (no es inicio de sesión: los datos siguen en este dispositivo). */
 function LockScreen({ onUnlocked }: { onUnlocked: () => void }) {
-  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [pk, setPk] = useState(false);
-  useEffect(() => setPk(passkeysSupported()), []);
+  const unlock = async () => {
+    setBusy(true); setError(null);
+    try { await unlockWithDevice(); onUnlocked(); } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+  };
+  useEffect(() => { void unlock(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <main className="page" style={{ paddingTop: 48 }}>
       <div className="stack" style={{ textAlign: "center", alignItems: "center" }}>
         <span className="ico" style={{ width: 72, height: 72, background: "var(--primary-soft)", color: "var(--primary)" }}><Icon name="lock" size={32} /></span>
-        <h1 className="title">Sesión bloqueada</h1>
-        <p className="muted">Por inactividad. Desbloquea para seguir; tus datos no se muestran mientras tanto.</p>
+        <h1 className="title">MisFinanzas está bloqueada</h1>
+        <p className="muted">Usa la huella, el rostro o el PIN de este dispositivo para continuar.</p>
       </div>
       {error && <Notice tone="danger"><p>{error}</p></Notice>}
-      {pk && <button className="btn primary block" style={{ marginTop: 16 }} disabled={busy} onClick={async () => { setBusy(true); setError(null); try { await unlockWithPasskey(); onUnlocked(); } catch (e) { setError(passkeyErrorMessage(e)); } finally { setBusy(false); } }}><Icon name="fingerprint" /> Desbloquear con passkey</button>}
-      <form style={{ marginTop: 16 }} onSubmit={async (e) => { e.preventDefault(); setBusy(true); setError(null); try { await api("/api/auth/unlock/password", { body: { password } }); onUnlocked(); } catch (err) { setError((err as Error).message); } finally { setBusy(false); } }}>
-        <div className="field"><label htmlFor="lockpw">Contraseña</label><input id="lockpw" className="input" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} /></div>
-        <button className="btn block" disabled={busy || !password}>Desbloquear con contraseña</button>
-      </form>
-      <button className="link-btn" style={{ marginTop: 12 }} onClick={async () => { await api("/api/auth/logout", { body: {} }); location.href = "/entrar"; }}>Cerrar sesión</button>
+      <button className="btn primary block" style={{ marginTop: 16 }} disabled={busy} onClick={unlock}><Icon name="fingerprint" /> Desbloquear</button>
     </main>
   );
 }

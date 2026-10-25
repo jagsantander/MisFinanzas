@@ -1,0 +1,276 @@
+import { beforeEach, describe, expect, it } from "vitest";
+import { createGoogle } from "./harness";
+
+type G = ReturnType<typeof createGoogle>;
+let G: G;
+const app = (action: string, extra: Record<string, unknown> = {}) => G.post({ action, token: G.appToken(), ...extra });
+
+/** Respuestas simuladas de los proveedores de IA, según el correo que se analiza. */
+const scripted = new Map<string, unknown>();
+function aiOk(provider: "gemini" | "anthropic" | "openai") {
+  G.onFetch((url, params) => {
+    if (url.includes("/models") && !url.includes(":generateContent")) {
+      return { code: 200, body: provider === "gemini" ? { models: [{ name: "models/gemini-2.5-flash", supportedGenerationMethods: ["generateContent"] }] } : { data: [{ id: "claude-haiku-5-5" }, { id: "gpt-4.1-mini" }] } };
+    }
+    const payload = JSON.parse(params.payload);
+    const text = provider === "gemini" ? payload.contents[0].parts[0].text : provider === "anthropic" ? payload.messages[0].content : payload.input[1].content;
+    let out: unknown = { message_type: "other", operations: [] };
+    if (/nightly_instruction_proposal|Categorías:/.test(text)) out = { classification_guidelines: ["Supermercados van a Alimentación", "Bencineras van a Transporte", "Farmacias a Salud"], ambiguity_guidelines: ["Duda si no hay monto"], merchant_hints: [{ pattern: "LIDER", category: "Alimentación" }, { pattern: "x", category: "Inventada" }] };
+    else { const subject = /Asunto: (.*)/.exec(text)?.[1] ?? ""; if (scripted.has(subject)) out = scripted.get(subject); }
+    const json = JSON.stringify(out);
+    if (provider === "gemini") return { code: 200, body: { candidates: [{ content: { parts: [{ text: json }] }, finishReason: "STOP" }], usageMetadata: { promptTokenCount: 900, candidatesTokenCount: 100 } } };
+    if (provider === "anthropic") return { code: 200, body: { stop_reason: "end_turn", content: [{ type: "text", text: json }], usage: { input_tokens: 900, output_tokens: 100 } } };
+    return { code: 200, body: { output: [{ type: "message", content: [{ type: "output_text", text: json }] }], usage: { input_tokens: 900, output_tokens: 100 } } };
+  });
+}
+const op = (p: Record<string, unknown>) => ({ status: "completed", kind: "expense", amount_text: "$10.000", currency: "CLP", occurred_date: "2026-10-24", occurred_time: null, merchant: null, counterparty: null, bank: "Banco", account_mask: "1234", description: "x", operation_id: null, category: null, subcategory: null, confidence: 0.95, ambiguity: null, ...p });
+const rows = (name: string) => G.sheets.get(name)!.rows.slice(1);
+const movements = () => (app("pull").tables.movements as any[]);
+
+beforeEach(() => {
+  G = createGoogle();
+  scripted.clear();
+  G.g.instalar();
+});
+
+describe("instalación y acceso", () => {
+  it("crea hojas, categorías iniciales y tokens distintos; repetir no duplica", () => {
+    expect([...G.sheets.keys()]).toEqual(expect.arrayContaining(["Movimientos", "Categorías", "Presupuestos", "Instrucciones", "Correos"]));
+    const n = rows("Categorías").length;
+    expect(n).toBeGreaterThan(19);
+    G.g.instalar();
+    expect(rows("Categorías").length).toBe(n);
+    expect(G.appToken()).toHaveLength(64);
+    expect(G.appToken()).not.toBe(G.importToken());
+  });
+  it("rechaza tokens inválidos y limita intentos repetidos", () => {
+    expect(G.post({ action: "pull", token: "malo" })).toMatchObject({ ok: false, code: "unauthorized" });
+    for (let i = 0; i < 20; i++) G.post({ action: "pull", token: "malo" });
+    expect(app("pull")).toMatchObject({ ok: false, code: "rate_limited" });
+  });
+  it("el token de importación no sirve para leer ni modificar datos", () => {
+    for (const action of ["pull", "push", "setAiKey", "approve", "importCredentials"]) {
+      expect(G.post({ action, token: G.importToken() })).toMatchObject({ ok: false, code: "unauthorized" });
+    }
+  });
+});
+
+describe("sincronización", () => {
+  it("push/pull con last-write-wins y espejo legible en la hoja", () => {
+    const cat = (app("pull").tables.categories as any[]).find((c) => c.name === "Alimentación");
+    const m = { id: "m1", kind: "expense", status: "confirmed", amountMinor: "62500", currency: "CLP", occurredOn: "2026-10-24", description: "Supermercado", categoryId: cat.id, source: "manual", excluded: false, updatedAt: "2026-10-24T10:00:00.000Z" };
+    expect(app("push", { changes: [{ table: "movements", record: m }] }).applied).toBe(1);
+    expect(app("push", { changes: [{ table: "movements", record: { ...m, description: "viejo", updatedAt: "2026-10-24T09:00:00.000Z" } }] }).applied).toBe(0);
+    app("push", { changes: [{ table: "movements", record: { ...m, description: "Líder", updatedAt: "2026-10-24T11:00:00.000Z" } }] });
+    expect(movements()).toHaveLength(1);
+    expect(movements()[0].description).toBe("Líder");
+    const row = rows("Movimientos")[0];
+    expect(row[5]).toBe(-62500); // monto con signo de gasto
+    expect(row[9]).toBe("Alimentación");
+    expect(() => 0).not.toThrow();
+    expect(app("push", { changes: [{ table: "runs", record: { id: "x" } }] })).toMatchObject({ ok: false });
+  });
+});
+
+describe("modalidad Google: script en la cuenta del usuario", () => {
+  function setupGoogle() {
+    aiOk("gemini");
+    const r = app("setAiKey", { provider: "gemini", apiKey: "AIzaPRUEBA0000000000000000000000000" });
+    expect(r.ok).toBe(true);
+    expect(JSON.stringify(app("pull"))).not.toContain("AIzaPRUEBA"); // la clave nunca vuelve a la app
+    expect(app("setAi", { model: "gemini-2.5-flash" }).ok).toBe(true);
+    expect(app("setPrefs", { mode: "google" }).automation.status).toBe("pending_approval");
+  }
+
+  it("no se activa sin validación explícita; aprobar crea el disparador real", () => {
+    setupGoogle();
+    const gen = app("generate");
+    const v = gen.automation.proposed;
+    expect(v.text).toContain("Lugar de ejecución");
+    expect(v.text).toContain("Supermercados van a Alimentación");
+    expect(v.text).not.toContain("Inventada"); // pistas con categorías inexistentes se descartan
+    expect(v.text).not.toMatch(/AIza|token":/);
+    expect(app("approve", { version: v.version })).toMatchObject({ ok: false });
+    expect(app("runNow")).toMatchObject({ ok: false });
+    expect(G.triggers).toHaveLength(0);
+    const ok = app("approve", { version: v.version, confirmed: true });
+    expect(ok.automation.status).toBe("active");
+    expect(G.triggers.filter((t) => t.fn === "nightlyRun")).toHaveLength(1);
+    expect(G.triggers[0].spec).toMatchObject({ hour: 3, minute: 0, tz: "America/Santiago", everyDays: 1 });
+    const instr = rows("Instrucciones").find((r) => r[1] === "aprobada")!;
+    expect(instr[4]).toBe("ana.prueba@gmail.com");
+    expect(instr[8]).toBe(v.text);
+  });
+
+  it("cambiar el horario invalida la aprobación y elimina el disparador", () => {
+    setupGoogle();
+    const v = app("generate").automation.proposed;
+    app("approve", { version: v.version, confirmed: true });
+    const r = app("setPrefs", { prefs: { scheduleTime: "04:00" } });
+    expect(r.automation.status).toBe("pending_approval");
+    expect(G.triggers.filter((t) => t.fn === "nightlyRun")).toHaveLength(0);
+    expect(app("resume")).toMatchObject({ ok: false });
+  });
+
+  it("importa desde Gmail, valida, deduplica y no reanaliza", () => {
+    setupGoogle();
+    app("approve", { version: app("generate").automation.proposed.version, confirmed: true });
+    const d = new Date();
+    G.mailbox.push(
+      { id: "g1", from: "Banco <avisos@bancochile.cl>", subject: "Compras", date: d, body: "Compras: $62.500 en LIDER y $45.000 en COPEC. Tarjeta 4111 1111 1111 1234" },
+      { id: "g2", from: "Banco <avisos@bancochile.cl>", subject: "Rechazada", date: d, body: "Compra por $99.000 rechazada" },
+      { id: "g3", from: "Banco <avisos@bancochile.cl>", subject: "Op 777", date: d, body: "Compra $120.000 FALABELLA op 777" },
+      { id: "g4", from: "Banco <avisos@bancochile.cl>", subject: "Op 777 copia", date: d, body: "Comprobante $120.000 FALABELLA op 777" },
+      { id: "g5", from: "amigo <a@personal.test>", subject: "Hola", date: d, body: "Nos vemos" },
+      { id: "g6", from: "Banco <avisos@bancochile.cl>", subject: "Inventado", date: d, body: "Abono recibido" },
+    );
+    scripted.set("Compras", { message_type: "transaction_notice", operations: [op({ amount_text: "$62.500", merchant: "LIDER", category: "Alimentación", subcategory: "Supermercado" }), op({ amount_text: "$45.000", merchant: "COPEC", category: "Transporte" })] });
+    scripted.set("Rechazada", { message_type: "rejected_attempt", operations: [op({ status: "rejected", amount_text: "$99.000" })] });
+    scripted.set("Op 777", { message_type: "transaction_notice", operations: [op({ amount_text: "$120.000", merchant: "FALABELLA", operation_id: "777" })] });
+    scripted.set("Op 777 copia", { message_type: "transaction_notice", operations: [op({ amount_text: "$120.000", merchant: "FALABELLA", operation_id: "777" })] });
+    scripted.set("Inventado", { message_type: "transaction_notice", operations: [op({ kind: "income", amount_text: "$500.000" })] });
+    const r = app("runNow");
+    expect(r.ok).toBe(true);
+    expect(r.run.status).toBe("succeeded");
+    const ms = movements();
+    expect(ms.filter((m) => m.sourceMessageId === "g1")).toHaveLength(2);
+    expect(ms.some((m) => m.amountMinor === "99000")).toBe(false);
+    expect(ms.filter((m) => m.operationRef === "777")).toHaveLength(1);
+    const invented = ms.find((m) => m.amountMinor === "500000");
+    expect(invented.status).toBe("review"); // el monto no aparece en el correo
+    // El correo personal no se envió a la IA.
+    expect(G.fetches.filter((f) => f.url.includes(":generateContent") && f.params.payload.includes("Nos vemos"))).toHaveLength(0);
+    // Todas las llamadas usan la clave del dueño.
+    expect(G.fetches.every((f) => f.params.headers["x-goog-api-key"] === "AIzaPRUEBA0000000000000000000000000")).toBe(true);
+
+    const calls = G.fetches.length;
+    const r2 = app("runNow");
+    expect(r2.run.movementsCreated).toBe(0);
+    expect(G.fetches.length).toBe(calls); // nada se reanaliza
+    expect(movements()).toHaveLength(ms.length);
+  });
+
+  it("correcciones manuales y eliminaciones sobreviven a la reimportación", () => {
+    setupGoogle();
+    app("approve", { version: app("generate").automation.proposed.version, confirmed: true });
+    G.mailbox.push({ id: "g1", from: "x@bancochile.cl", subject: "Compra", date: new Date(), body: "Compra $10.000 LIDER" });
+    scripted.set("Compra", { message_type: "transaction_notice", operations: [op({ merchant: "LIDER", category: "Alimentación" })] });
+    app("runNow");
+    const m = movements()[0];
+    app("push", { changes: [{ table: "movements", record: { ...m, categoryId: null, notes: "corregido", lockedFields: ["categoryId"], deletedAt: "2026-10-25T00:00:00.000Z", updatedAt: new Date(Date.now() + 1000).toISOString() } }] });
+    G.props.set("AUTOMATION", JSON.stringify({ ...JSON.parse(G.props.get("AUTOMATION")!), lastSuccessAt: null }));
+    G.sheets.get("Correos")!.rows.splice(1); // simula perder el registro de correos procesados
+    app("runNow");
+    const all = app("pull").tables.movements as any[];
+    expect(all).toHaveLength(1);
+    expect(all[0].notes).toBe("corregido");
+    expect(all[0].deletedAt).not.toBeNull();
+  });
+
+  it("si la IA falla no marca el correo como procesado y una cuota agotada pausa sin cambiar de proveedor", () => {
+    setupGoogle();
+    app("approve", { version: app("generate").automation.proposed.version, confirmed: true });
+    G.mailbox.push({ id: "g1", from: "x@bancochile.cl", subject: "Compra", date: new Date(), body: "Compra $10.000" });
+    G.onFetch(() => ({ code: 429, body: { error: { message: "quota exceeded for this billing period" } } }));
+    const r = app("runNow");
+    expect(r.run.status).toBe("failed");
+    expect(rows("Correos")[0][3]).toContain('"status":"failed"');
+    const a = app("pull").automation;
+    expect(a.status).toBe("paused");
+    expect(G.fetches.every((f) => f.url.includes("generativelanguage.googleapis.com"))).toBe(true);
+    aiOk("gemini");
+    scripted.set("Compra", { message_type: "transaction_notice", operations: [op({})] });
+    app("resume");
+    expect(app("runNow").run.movementsCreated).toBe(1);
+  });
+
+  it("límite mensual de tokens de MisFinanzas bloquea antes de llamar", () => {
+    setupGoogle();
+    app("setAi", { monthlyTokenLimit: 10000 });
+    app("approve", { version: app("generate").automation.proposed.version, confirmed: true });
+    G.props.set("USAGE", JSON.stringify({ [new Date().toISOString().slice(0, 7)]: 10000 }));
+    const before = G.fetches.length;
+    expect(app("runNow")).toMatchObject({ ok: false });
+    expect(G.fetches.length).toBe(before);
+  });
+
+  it("una sola corrida programada por día local", () => {
+    setupGoogle();
+    app("approve", { version: app("generate").automation.proposed.version, confirmed: true });
+    G.g.nightlyRun();
+    const runs1 = rows("Ejecuciones").length;
+    G.g.nightlyRun();
+    expect(rows("Ejecuciones").length).toBe(runs1);
+  });
+});
+
+describe("modalidad Claude: tarea programada en claude.ai", () => {
+  function setupClaude() {
+    app("setPrefs", { mode: "claude", prefs: { claudeGmailAccount: "ana.prueba@gmail.com" } });
+    const v = app("generate").automation.proposed;
+    expect(v.text).toContain("$MISFINANZAS_IMPORT_TOKEN");
+    expect(v.text).not.toContain(G.importToken());
+    return v;
+  }
+  const imp = (emails: unknown[]) => G.post({ action: "import", token: G.importToken(), emails });
+  const email = (id: string, ops: unknown[], extra = {}) => ({ message_id: id, received_at: new Date().toISOString(), from: "x@bancochile.cl", subject: "s", extraction: { message_type: "transaction_notice", operations: ops }, ...extra });
+
+  it("rechaza importaciones hasta la aprobación y luego importa con validación por evidencia", () => {
+    const v = setupClaude();
+    expect(imp([email("c1", [op({ evidence: "Compra por $10.000" })])])).toMatchObject({ ok: false });
+    app("approve", { version: v.version, confirmed: true });
+    expect(G.triggers.filter((t) => t.fn === "nightlyRun")).toHaveLength(0); // corre en Claude, no aquí
+    const r = imp([email("c1", [op({ evidence: "Compra por $10.000" })]), email("c2", [op({ amount_text: "$77.000", evidence: "sin monto" })])]);
+    expect(r.ok).toBe(true);
+    expect(r.run.movementsCreated).toBe(2);
+    const ms = movements();
+    expect(ms.find((m) => m.sourceMessageId === "c1").status).toBe("review"); // "Sin categoría asignada"
+    expect(ms.find((m) => m.sourceMessageId === "c2").reviewReason).toMatch(/fragmento citado/);
+    const st = G.post({ action: "importState", token: G.importToken() });
+    expect(st.active).toBe(true);
+    expect(st.processedMessageIds).toEqual(expect.arrayContaining(["c1", "c2"]));
+    expect(imp([email("c1", [op({ evidence: "Compra por $10.000" })])]).run.movementsCreated).toBe(0);
+  });
+
+  it("pausar en MisFinanzas bloquea las importaciones de Claude; cambiar de modalidad evita que corran ambas", () => {
+    const v = setupClaude();
+    app("approve", { version: v.version, confirmed: true });
+    app("pause");
+    expect(imp([email("c9", [op({ evidence: "$10.000" })])])).toMatchObject({ ok: false });
+    app("setPrefs", { mode: "google" });
+    expect(G.post({ action: "importState", token: G.importToken() }).active).toBe(false);
+    expect(imp([email("c9", [op({ evidence: "$10.000" })])])).toMatchObject({ ok: false });
+  });
+});
+
+describe("presupuestos y avisos", () => {
+  it("un aviso por umbral; de noche se programa el correo para las 08:00", () => {
+    const cats = app("pull").tables.categories as any[];
+    const ali = cats.find((c) => c.name === "Alimentación");
+    const now = new Date().toISOString();
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago" }).format(new Date());
+    app("push", { changes: [
+      { table: "budgets", record: { id: "b1", scopeKey: `cat:${ali.id}`, categoryId: ali.id, subcategoryId: null, amountMinor: "400000", currency: "CLP", active: true, updatedAt: now } },
+      { table: "movements", record: { id: "m1", kind: "expense", status: "confirmed", amountMinor: "425000", currency: "CLP", occurredOn: today, categoryId: ali.id, source: "manual", excluded: false, updatedAt: now } },
+    ] });
+    G.g.evaluateBudgets_();
+    G.g.evaluateBudgets_();
+    const notes = (app("pull").tables.notifications as any[]).filter((n) => n.type === "budget");
+    expect(notes).toHaveLength(1);
+    expect(notes[0].body).toBe("Alimentación · $425.000 de $400.000 · 106,3% utilizado · Excedido en $25.000");
+  });
+  it("horario de silencio: envío inmediato fuera de él", () => {
+    app("saveSettings", { settings: { quietStart: "00:00", quietEnd: "00:01" } });
+    G.g.queueNotice_({ type: "test", title: "Hola", body: "Prueba", dedupeKey: "t1" });
+    G.g.deliverOrSchedule_();
+    const s = JSON.parse(G.props.get("SETTINGS")!);
+    const inQuiet = G.g.inQuiet_(s, new Date());
+    if (inQuiet) expect(G.triggers.some((t) => t.fn === "sendPendingNotices")).toBe(true);
+    else expect(G.sentMail).toHaveLength(1);
+  });
+  it("la próxima ejecución respeta la hora local de Santiago", () => {
+    const iso = G.g.zonedDate_("2026-10-26", "03:00", "America/Santiago").toISOString();
+    expect(iso).toBe("2026-10-26T06:00:00.000Z"); // octubre: horario de verano (UTC−3)
+    expect(G.g.zonedDate_("2026-06-15", "03:00", "America/Santiago").toISOString()).toBe("2026-06-15T07:00:00.000Z");
+  });
+});

@@ -1,4 +1,4 @@
-import type { Movement, RuleConditions } from "../db/schema";
+import type { Movement, RuleConditions } from "../local/types";
 import { norm } from "../text";
 
 export type RuleLike = { id: string; priority: number; active: boolean; conditions: RuleConditions; categoryId: string; subcategoryId: string | null };

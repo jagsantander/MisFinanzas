@@ -19,7 +19,7 @@ export function MovementItem({ m, cats }: { m: Mv; cats: Cat[] }) {
   const color = cat?.color ?? (m.kind === "income" || m.kind === "refund" ? "#11734f" : "#64708a");
   const subtitle = cat ? (sub ? `${cat.name} › ${sub.name}` : cat.name) : KIND_LABEL[m.kind];
   return (
-    <Link href={`/movimientos/${m.id}`} className="item" style={{ color: "var(--text)", opacity: m.excluded ? 0.6 : 1 }}>
+    <Link href={`/movimientos/detalle?id=${m.id}`} className="item" style={{ color: "var(--text)", opacity: m.excluded ? 0.6 : 1 }}>
       <CatIcon icon={icon} color={color} />
       <div className="grow">
         <div className="t ellipsis">{m.merchant || m.description}</div>

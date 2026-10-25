@@ -1,34 +1,21 @@
 "use client";
 import Link from "next/link";
-import { Suspense, useEffect } from "react";
-import { useSearchParams } from "next/navigation";
+import { useStore } from "@/lib/client";
 import { Icon } from "@/components/Icon";
-import { ErrorState, Notice, useToast } from "@/components/ui";
-import { AiConnection, ConnectionsLoading, MailConnection, useConnections } from "@/components/connections";
-import { useApi } from "@/lib/client";
+import { SheetConnection } from "@/components/sheet";
 
-function Inner() {
-  const sp = useSearchParams();
-  const toast = useToast();
-  const { data, error, loading, reload } = useConnections();
-  const auto = useApi<{ automation: { status: string } | null }>("/api/automation");
-  useEffect(() => { if (sp.get("ok") === "mail") toast({ text: "Correo conectado" }); }, [sp, toast]);
+export default function ConnectionsPage() {
+  const st = useStore();
   return (
     <main className="page">
       <Link href="/perfil" className="link-btn"><Icon name="chevronLeft" size={18} /> Perfil</Link>
-      <h1 className="title">Conexiones</h1>
-      <p className="subtitle">El correo que conectes aquí puede ser distinto del correo de tu cuenta.</p>
-      {sp.get("error") && <Notice tone="danger"><p>{sp.get("error")}</p></Notice>}
-      {loading && !data ? <ConnectionsLoading /> : error ? <ErrorState error={error} retry={reload} /> : data && (
-        <div className="stack">
-          <h2 className="section">Correo para importar movimientos</h2>
-          <MailConnection conns={data} onChange={() => { reload(); auto.reload(); }} automationActive={auto.data?.automation?.status === "active"} />
-          <h2 className="section">Tu proveedor de IA</h2>
-          <AiConnection conns={data} onChange={reload} />
-          <Notice><p className="small">Conectar cuentas no activa la automatización. Para eso debes <Link href="/automatizacion">revisar y validar la instrucción nocturna</Link>. Desconectar no borra tus movimientos.</p></Notice>
-        </div>
-      )}
+      <h1 className="title">Tu planilla</h1>
+      <p className="subtitle">Dónde se guardan tus datos. Puedes abrirla en Google Sheets cuando quieras: es tuya.</p>
+      <SheetConnection />
+      {st.connection && <Link href="/automatizacion" className="card pad row" style={{ marginTop: 12, color: "var(--text)" }}>
+        <span className="ico sm" style={{ background: "var(--primary-soft)", color: "var(--primary)" }}><Icon name="moon" /></span>
+        <div className="grow"><strong>Actualización nocturna e IA</strong><div className="small muted">Configura dónde corre, tu IA y la instrucción</div></div><Icon name="chevronRight" />
+      </Link>}
     </main>
   );
 }
-export default function ConnectionsPage() { return <Suspense><Inner /></Suspense>; }

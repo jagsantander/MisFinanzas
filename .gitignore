@@ -23,3 +23,5 @@ backups/
 .claude/
 .DS_Store
 railway-variables.local.txt
+out/
+public/apps-script/

@@ -1,13 +1,12 @@
-/* Service worker de MisFinanzas.
- * - Instalación como PWA y página sin conexión.
- * - NO guarda en caché respuestas de la API (datos financieros) ni páginas autenticadas.
- * - Recibe notificaciones push (el contenido ya viene sin datos sensibles si el usuario lo eligió).
- * - No ejecuta tareas programadas: la actualización nocturna corre en el servidor. */
-const CACHE = "mf-static-v1";
-const OFFLINE = "/offline.html";
+/* Service worker de MisFinanzas (página estática).
+ * - Permite instalar la app y abrirla sin conexión (los datos están en el dispositivo).
+ * - Guarda en caché solo archivos de la app; NUNCA respuestas de la planilla (datos financieros).
+ * - No ejecuta tareas programadas: la actualización nocturna corre en tu cuenta de Google o de Claude. */
+const CACHE = "mf-app-v2";
+const BASE = new URL(self.registration.scope).pathname; // p. ej. /MisFinanzas/
 
 self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll([OFFLINE, "/icons/icon-192.png"])));
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll([BASE, BASE + "offline.html", BASE + "icons/icon-192.png"])).catch(() => {}));
   self.skipWaiting();
 });
 self.addEventListener("activate", (e) => {
@@ -18,25 +17,14 @@ self.addEventListener("fetch", (e) => {
   const req = e.request;
   if (req.method !== "GET") return;
   const url = new URL(req.url);
-  if (url.origin !== location.origin || url.pathname.startsWith("/api/")) return;
-  if (url.pathname.startsWith("/_next/static/") || url.pathname.startsWith("/icons/")) {
+  if (url.origin !== location.origin || !url.pathname.startsWith(BASE)) return;
+  if (url.pathname.includes("/_next/static/") || url.pathname.includes("/icons/")) {
     e.respondWith(caches.match(req).then((hit) => hit || fetch(req).then((res) => { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); return res; })));
     return;
   }
-  if (req.mode === "navigate") e.respondWith(fetch(req).catch(() => caches.match(OFFLINE)));
-});
-self.addEventListener("push", (e) => {
-  let data = { title: "MisFinanzas", body: "Tienes un aviso nuevo", url: "/notificaciones" };
-  try { data = { ...data, ...e.data.json() }; } catch {}
-  e.waitUntil(self.registration.showNotification(data.title, { body: data.body, icon: "/icons/icon-192.png", badge: "/icons/icon-192.png", data: { url: data.url } }));
-});
-self.addEventListener("notificationclick", (e) => {
-  e.notification.close();
-  // Solo se abren rutas del propio sitio, aunque el aviso traiga otra URL.
-  let url = "/";
-  try { const u = new URL(e.notification.data?.url || "/", self.location.origin); if (u.origin === self.location.origin) url = u.pathname + u.search; } catch {}
-  e.waitUntil(self.clients.matchAll({ type: "window" }).then((list) => {
-    for (const c of list) if ("focus" in c) { c.navigate(url); return c.focus(); }
-    return self.clients.openWindow(url);
-  }));
+  if (req.mode === "navigate") {
+    // Red primero; sin conexión, la última versión guardada de la página o la página sin conexión.
+    e.respondWith(fetch(req).then((res) => { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); return res; })
+      .catch(() => caches.match(req).then((hit) => hit || caches.match(BASE) || caches.match(BASE + "offline.html"))));
+  }
 });

@@ -1,26 +1,21 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { localApi, LocalApiError } from "./local/api";
+import { getState, initStore, subscribe, type State } from "./local/store";
 
 export class ApiError extends Error {
   constructor(message: string, public status: number, public code?: string, public data?: unknown) { super(message); }
 }
 
-/** fetch JSON con manejo uniforme: 401 → entrar, 423 → pantalla de bloqueo. */
+/** Llama a la API local (datos en este dispositivo, sincronizados con tu planilla). */
 export async function api<T = any>(url: string, opts: { method?: string; body?: unknown } = {}): Promise<T> {
-  const res = await fetch(url, {
-    method: opts.method ?? (opts.body ? "POST" : "GET"),
-    headers: opts.body !== undefined ? { "content-type": "application/json" } : undefined,
-    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
-    credentials: "same-origin",
-  });
-  let data: any = null;
-  try { data = await res.json(); } catch { /* sin cuerpo */ }
-  if (res.status === 423 && typeof window !== "undefined") window.dispatchEvent(new Event("mf:locked"));
-  if (res.status === 401 && typeof window !== "undefined" && !location.pathname.startsWith("/entrar")) {
-    location.href = `/entrar?next=${encodeURIComponent(location.pathname + location.search)}`;
+  await initStore();
+  try {
+    return (await localApi(url, opts)) as T;
+  } catch (e) {
+    if (e instanceof LocalApiError) throw new ApiError(e.message, e.status, e.code, e.data);
+    throw new ApiError((e as Error).message ?? "No se pudo completar la acción", 500);
   }
-  if (!res.ok) throw new ApiError(data?.error ?? "No se pudo completar la acción", res.status, data?.code, data);
-  return data as T;
 }
 
 /** Hook de lectura con estados de carga/error y recarga manual. */
@@ -46,7 +41,9 @@ export function useApi<T = any>(url: string | null) {
   useEffect(() => {
     const h = () => load();
     window.addEventListener("mf:refresh", h);
-    return () => window.removeEventListener("mf:refresh", h);
+    // Se recalcula cuando cambian los datos locales o llegan cambios de la planilla.
+    const unsub = subscribe(() => { void load(); });
+    return () => { window.removeEventListener("mf:refresh", h); unsub(); };
   }, [load]);
   return { data, error, loading, reload: load, setData };
 }
@@ -91,6 +88,7 @@ export function dayHeading(iso: string) {
 
 export const KIND_LABEL: Record<string, string> = { expense: "Gasto", income: "Ingreso", own_transfer: "Transferencia propia", card_payment: "Pago de tarjeta", refund: "Devolución", reversal: "Reverso" };
 export const AUTOMATION_STATUS: Record<string, { label: string; tone: string }> = {
+  not_configured: { label: "Sin configurar", tone: "info" },
   pending_approval: { label: "Pendiente de validación", tone: "warn" },
   active: { label: "Activa", tone: "ok" },
   paused: { label: "Pausada", tone: "info" },
@@ -109,3 +107,12 @@ export function movementTone(kind: string): { sign: string; cls: string } {
   if (kind === "refund" || kind === "reversal") return { sign: "+", cls: "income" };
   return { sign: "", cls: "neutral" };
 }
+
+/** Estado completo del almacén local (conexión, sincronización, automatización). */
+export function useStore(): State {
+  return useSyncExternalStore(subscribe, getState, getState);
+}
+
+/** Antepone la ruta base de GitHub Pages a rutas internas usadas fuera de next/link. */
+export const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+export const withBase = (p: string) => `${BASE_PATH}${p}`;

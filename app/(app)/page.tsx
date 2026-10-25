@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useState } from "react";
-import { useApi } from "@/lib/client";
+import { useApi, withBase } from "@/lib/client";
 import { useMe } from "@/components/AppShell";
 import { Icon } from "@/components/Icon";
 import { Empty, ErrorState, Loading, Money, Notice, LEVEL, pctText } from "@/components/ui";
@@ -17,7 +17,7 @@ type Dash = {
   totalBudget: { limit: string; spent: string; pctTenths: number; level: string } | null;
   alerts: { budgetId: string; categoryId: string | null; subcategoryId: string | null; scope: string; level: string; pctTenths: number }[];
   latest: Mv[]; reviewCount: number; currency: string; name: string;
-  automation: { status: string; nextRunAt: string | null; lastRun: any; pausedReason: string | null } | null;
+  automation: { status: string; mode?: string; nextRunAt: string | null; lastRun: any; pausedReason: string | null } | null;
 };
 
 export default function Home() {
@@ -33,7 +33,7 @@ export default function Home() {
   return (
     <main className="page">
       <div className="topbar">
-        <div className="brand"><img src="/icons/icon-192.png" alt="" width={40} height={40} style={{ borderRadius: 11 }} /><span>Mis<b>Finanzas</b></span></div>
+        <div className="brand"><img src={withBase("/icons/icon-192.png")} alt="" width={40} height={40} style={{ borderRadius: 11 }} /><span>Mis<b>Finanzas</b></span></div>
         <Link href="/notificaciones" className="btn ghost sm" aria-label={`Notificaciones${me?.unread ? `, ${me.unread} sin leer` : ""}`} style={{ position: "relative" }}>
           <Icon name="bell" size={26} />
           {me?.unread ? <span style={{ position: "absolute", top: 6, right: 10, width: 10, height: 10, borderRadius: 5, background: "var(--expense-icon)" }} /> : null}
