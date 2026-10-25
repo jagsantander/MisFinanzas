@@ -17,6 +17,12 @@ export type Me = {
 const MeCtx = createContext<{ me: Me | null; reload: () => Promise<void> }>({ me: null, reload: async () => {} });
 export const useMe = () => useContext(MeCtx);
 
+/** El tema es una preferencia de este dispositivo: no se sincroniza con la planilla. */
+export function localTheme(): "system" | "light" | "dark" {
+  try { const t = localStorage.getItem("mf-theme"); if (t === "light" || t === "dark") return t; } catch { /* almacenamiento no disponible */ }
+  return "system";
+}
+
 export function applyTheme(theme: string) {
   try { localStorage.setItem("mf-theme", theme); } catch { /* almacenamiento no disponible */ }
   if (theme === "light" || theme === "dark") document.documentElement.dataset.theme = theme;
@@ -37,7 +43,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [locked, setLocked] = useState<boolean | null>(null);
 
   useEffect(() => { void initStore(); }, []);
-  useEffect(() => { if (st.loaded) applyTheme(st.settings.theme); }, [st.loaded, st.settings.theme]);
+  useEffect(() => { applyTheme(localTheme()); }, []);
   useEffect(() => {
     if (st.loaded && !st.settings.onboardingDone && !path.startsWith("/bienvenida")) router.replace("/bienvenida");
   }, [st.loaded, st.settings.onboardingDone, path, router]);
@@ -81,7 +87,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
         {!hideNav && !locked && (
           <nav className="nav" aria-label="Principal">
-            <div className="nav-brand brand" style={{ display: "none" }}><span>Mis<b>Finanzas</b></span></div>
+            <div className="nav-brand brand" style={{ display: "none" }}><span>Mi <b>saldo</b></span></div>
             {NAV.map((n) => (
               <Link key={n.href} href={n.href} aria-current={isActive(n.href) ? "page" : undefined}>
                 <Icon name={n.icon} />
@@ -121,7 +127,7 @@ function LockScreen({ onUnlocked }: { onUnlocked: () => void }) {
     <main className="page" style={{ paddingTop: 48 }}>
       <div className="stack" style={{ textAlign: "center", alignItems: "center" }}>
         <span className="ico" style={{ width: 72, height: 72, background: "var(--primary-soft)", color: "var(--primary)" }}><Icon name="lock" size={32} /></span>
-        <h1 className="title">MisFinanzas está bloqueada</h1>
+        <h1 className="title">Mi saldo está bloqueado</h1>
         <p className="muted">Usa la huella, el rostro o el PIN de este dispositivo para continuar.</p>
       </div>
       {error && <Notice tone="danger"><p>{error}</p></Notice>}

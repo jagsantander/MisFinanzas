@@ -22,17 +22,30 @@ function CopyButton({ path, label }: { path: string; label: string }) {
   );
 }
 
+/** Pasos para reemplazar el código del script por una versión nueva, manteniendo la misma URL. */
+export function ScriptUpdateSteps() {
+  return (
+    <ol className="stack small" style={{ paddingLeft: 20, margin: 0, gap: 8 }}>
+      <li>Abre tu planilla y entra a <strong>Extensiones → Apps Script</strong>.</li>
+      <li>Reemplaza todo el contenido de <code>Código.gs</code>: <CopyButton path="/apps-script/Code.gs" label="Copiar código" /> y guarda.</li>
+      <li>Pulsa <strong>Implementar → Gestionar implementaciones</strong>, edita (lápiz) la implementación actual, elige <strong>Versión: Nueva versión</strong> y pulsa <strong>Implementar</strong>. La URL no cambia.</li>
+      <li>Vuelve aquí y pulsa <strong>Sincronizar ahora</strong>.</li>
+    </ol>
+  );
+}
+
 /** Pasos para crear la planilla y su script (una vez por usuario). */
 export function SheetSetupSteps() {
   return (
     <ol className="stack small" style={{ paddingLeft: 20, margin: 0, gap: 10 }}>
-      <li>Crea una planilla nueva en <a href="https://sheets.new" target="_blank" rel="noopener">sheets.new</a> (con la cuenta de Google donde recibes los avisos del banco, si vas a usar la modalidad Google). Ponle de nombre «MisFinanzas».</li>
+      <li>Crea una planilla nueva en <a href="https://sheets.new" target="_blank" rel="noopener">sheets.new</a> (con la cuenta de Google donde recibes los avisos del banco, si vas a usar la modalidad Google). Ponle de nombre «Mi saldo».</li>
       <li>En la planilla abre <strong>Extensiones → Apps Script</strong>.</li>
       <li>Borra lo que haya en <code>Código.gs</code> y pega el código del script: <CopyButton path="/apps-script/Code.gs" label="Copiar código" /></li>
       <li>En <strong>Configuración del proyecto</strong> (engranaje) activa «Mostrar el archivo de manifiesto "appsscript.json"». Vuelve al editor, abre <code>appsscript.json</code> y reemplaza su contenido: <CopyButton path="/apps-script/appsscript.json" label="Copiar manifiesto" /></li>
-      <li>Guarda, elige la función <code>instalar</code> arriba y pulsa <strong>Ejecutar</strong>. Google te pedirá permisos para TU propio script. Como no está publicado, verás «Google no verificó esta app»: pulsa <em>Configuración avanzada → Ir a MisFinanzas</em>. Los permisos son: ver esta planilla, leer Gmail (solo lectura), conectarse a tu IA, crear el disparador nocturno y enviarte avisos por correo.</li>
+      <li>Guarda, elige la función <code>instalar</code> arriba y pulsa <strong>Ejecutar</strong>. Google te pedirá permisos para TU propio script. Como no está publicado, verás «Google no verificó esta app»: pulsa <em>Configuración avanzada → Ir a Mi saldo</em>.
+        <div className="card pad" style={{ marginTop: 8 }}><strong>Aquí autorizas la lectura de Gmail.</strong> Entre los permisos aparece «Ver tus mensajes de correo electrónico y la configuración»: es <strong>solo lectura</strong> y lo usa únicamente tu script, en tu cuenta. Los otros permisos son: ver esta planilla, conectarse a tu IA, crear el disparador nocturno y enviarte avisos por correo. Puedes revocarlos cuando quieras en <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">myaccount.google.com/permissions</a>.</div></li>
       <li>Pulsa <strong>Implementar → Nueva implementación</strong>, tipo <strong>Aplicación web</strong>. «Ejecutar como»: <strong>Yo</strong>. «Quién tiene acceso»: <strong>Cualquier usuario</strong> (el token protege el acceso). Copia la <strong>URL de la aplicación web</strong>.</li>
-      <li>En la planilla, recarga la página y usa el menú <strong>MisFinanzas → Mostrar datos de conexión</strong> para copiar el <strong>token de la app</strong>.</li>
+      <li>En la planilla, recarga la página y usa el menú <strong>Mi saldo → Mostrar datos de conexión</strong> para copiar el <strong>token de la app</strong>.</li>
     </ol>
   );
 }
@@ -56,6 +69,10 @@ export function SheetConnection() {
           <span className={`badge ${st.syncError ? "danger" : st.pending.length ? "warn" : "ok"}`}>{st.syncing ? "Sincronizando…" : st.syncError ? "Con error" : st.pending.length ? `${st.pending.length} por enviar` : "Al día"}</span>
         </div>
         <div className="small muted">Última sincronización: {st.lastSyncAt ? fmtDateTime(st.lastSyncAt) : "aún no"}</div>
+        {st.automation && !st.automation.bankDomains && (
+          <Notice tone="warn"><p className="small"><strong>Actualiza el script de tu planilla.</strong> Es de una versión anterior: sin actualizarlo no podrás leer boletas, elegir bancos ni probar el acceso a Gmail.</p>
+            <ScriptUpdateSteps /></Notice>
+        )}
         {st.syncError && <Notice tone="danger"><p className="small">{st.syncError}</p></Notice>}
         <div className="row" style={{ flexWrap: "wrap" }}>
           <button className="btn sm primary" disabled={st.syncing} onClick={async () => { await sync(); if (!getErr()) toast({ text: "Sincronizado" }); }}><Icon name="refresh" size={16} /> Sincronizar ahora</button>
@@ -79,7 +96,7 @@ export function SheetConnection() {
   }
   return (
     <div className="card pad stack">
-      <p className="small" style={{ margin: 0 }}>Tus datos se guardan en una planilla de Google Sheets <strong>tuya</strong>, con un pequeño script que solo tú controlas. MisFinanzas no tiene servidor ni ve tus datos.</p>
+      <p className="small" style={{ margin: 0 }}>Tus datos se guardan en una planilla de Google Sheets <strong>tuya</strong>, con un pequeño script que solo tú controlas. Mi saldo no tiene servidor ni ve tus datos.</p>
       <details><summary>Cómo crear la planilla (una sola vez, unos 5 minutos)</summary><div style={{ marginTop: 8 }}><SheetSetupSteps /></div></details>
       <form onSubmit={submit} className="stack" style={{ gap: 0 }}>
         <div className="field"><label htmlFor="surl">URL de la aplicación web del script</label>

@@ -274,3 +274,96 @@ describe("presupuestos y avisos", () => {
     expect(G.g.zonedDate_("2026-06-15", "03:00", "America/Santiago").toISOString()).toBe("2026-06-15T07:00:00.000Z");
   });
 });
+
+describe("correos que se leen", () => {
+  const P = (p: Record<string, unknown> = {}) => G.g.validatePrefs_({ ...JSON.parse(JSON.stringify(G.g.DEFAULT_AUTOMATION.prefs)), ...p });
+  it("bancos desmarcados, remitentes propios y modo «solo remitentes»", () => {
+    const base = P();
+    expect(G.g.looksFinancial_("Banco <avisos@bancochile.cl>", "Hola", base)).toBe(true);
+    expect(G.g.looksFinancial_("Tienda <x@tienda.cl>", "Comprobante de compra", base)).toBe(true); // por asunto
+    const off = P({ disabledBanks: ["bancochile.cl", "noexiste.cl"], bankSenders: ["pagos@tienda.cl", "@otrobanco.cl"] });
+    expect(off.disabledBanks).toEqual(["bancochile.cl"]);
+    expect(off.bankSenders).toEqual(["pagos@tienda.cl", "otrobanco.cl"]);
+    expect(G.g.looksFinancial_("Banco <avisos@bancochile.cl>", "Hola", off)).toBe(false);
+    expect(G.g.looksFinancial_("Tienda <PAGOS@tienda.cl>", "Hola", off)).toBe(true);
+    expect(G.g.looksFinancial_("Tienda <ventas@tienda.cl>", "Hola", off)).toBe(false); // otra dirección del mismo dominio
+    expect(G.g.looksFinancial_("x@avisos.otrobanco.cl", "Hola", off)).toBe(true); // subdominio
+    const only = P({ sendersOnly: true });
+    expect(G.g.looksFinancial_("Tienda <x@tienda.cl>", "Comprobante de compra", only)).toBe(false);
+    expect(G.g.looksFinancial_("Banco <avisos@bci.cl>", "Hola", only)).toBe(true);
+    expect(() => P({ sendersOnly: true, disabledBanks: G.g.BANK_DOMAINS, bankSenders: [] })).toThrow(/al menos un banco/);
+    expect(() => P({ gmailLabel: 'a"b' })).toThrow(/etiqueta/);
+  });
+
+  it("la etiqueta de Gmail limita la búsqueda y cambia la aprobación", () => {
+    aiOk("gemini");
+    app("setAiKey", { provider: "gemini", apiKey: "AIzaPRUEBA0000000000000000000000000" });
+    app("setAi", { model: "gemini-2.5-flash" });
+    app("setPrefs", { mode: "google", prefs: { gmailLabel: "Mi Banco/Avisos" } });
+    const v = app("generate").automation.proposed;
+    expect(v.text).toContain("etiqueta de Gmail «Mi Banco/Avisos»");
+    app("approve", { version: v.version, confirmed: true });
+    const d = new Date();
+    G.mailbox.push(
+      { id: "l1", from: "Banco <avisos@bci.cl>", subject: "Compra", date: d, body: "Compra $5.000", labels: ["Mi Banco/Avisos"] },
+      { id: "l2", from: "Banco <avisos@bci.cl>", subject: "Compra 2", date: d, body: "Compra $7.000" },
+    );
+    scripted.set("Compra", { message_type: "transaction_notice", operations: [op({ amount_text: "$5.000" })] });
+    scripted.set("Compra 2", { message_type: "transaction_notice", operations: [op({ amount_text: "$7.000" })] });
+    expect(app("runNow").run.movementsCreated).toBe(1);
+    expect(movements().map((m) => m.sourceMessageId)).toEqual(["l1"]);
+    expect(app("checkGmail").gmail).toMatchObject({ ok: true, labels: ["Mi Banco/Avisos"] });
+    expect(app("setPrefs", { prefs: { gmailLabel: "" } }).automation.status).toBe("pending_approval");
+  });
+
+  it("la tarea de Claude recibe los remitentes y la etiqueta", () => {
+    app("setPrefs", { mode: "claude", prefs: { claudeGmailAccount: "ana@gmail.com", sendersOnly: true, bankSenders: ["pagos@tienda.cl"], disabledBanks: ["paypal.com"], gmailLabel: "Finanzas" } });
+    const s = G.post({ action: "importState", token: G.importToken() });
+    expect(s.senders).toContain("pagos@tienda.cl");
+    expect(s.senders).not.toContain("paypal.com");
+    expect(s).toMatchObject({ sendersOnly: true, gmailLabel: "Finanzas" });
+    expect(app("generate").automation.proposed.text).toContain('Considera SOLO los remitentes de "senders"');
+  });
+});
+
+describe("foto de boleta", () => {
+  let lastPayload: any;
+  function aiReceipt(out: unknown) {
+    G.onFetch((url, params) => {
+      if (!url.includes(":generateContent")) return { code: 200, body: { models: [{ name: "models/gemini-2.5-flash", supportedGenerationMethods: ["generateContent"] }] } };
+      lastPayload = JSON.parse(params.payload);
+      return { code: 200, body: { candidates: [{ content: { parts: [{ text: JSON.stringify(out) }] }, finishReason: "STOP" }], usageMetadata: { promptTokenCount: 1200, candidatesTokenCount: 80 } } };
+    });
+    app("setAiKey", { provider: "gemini", apiKey: "AIzaPRUEBA0000000000000000000000000" });
+    app("setAi", { model: "gemini-2.5-flash" });
+  }
+  const IMG = "A".repeat(400);
+  const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago" }).format(new Date());
+
+  it("lee total, comercio y categoría existente, enviando la imagen a la IA del usuario", () => {
+    aiReceipt({ is_receipt: true, merchant: "LIDER", date: today(), time: "18:45", total_text: "$23.990", currency: "CLP", category: "alimentación", subcategory: "Supermercado", description: "Compra supermercado", confidence: 0.92 });
+    const r = app("scanReceipt", { image: IMG, mimeType: "image/jpeg" });
+    expect(r.ok).toBe(true);
+    expect(lastPayload.contents[0].parts[0]).toEqual({ inlineData: { mimeType: "image/jpeg", data: IMG } });
+    const cats = app("pull").tables.categories as any[];
+    const ali = cats.find((c) => c.name === "Alimentación");
+    expect(r.receipt).toMatchObject({ amountMinor: 23990, currency: "CLP", merchant: "LIDER", occurredTime: "18:45", categoryId: ali.id, warnings: [] });
+    expect(r.receipt.subcategoryId).toBe(cats.find((c) => c.name === "Supermercado" && c.parentId === ali.id).id);
+    expect(movements()).toHaveLength(0); // no registra nada sin que el usuario lo confirme
+  });
+
+  it("marca lo dudoso y rechaza imágenes inválidas", () => {
+    aiReceipt({ is_receipt: false, merchant: null, date: "1999-01-01", time: null, total_text: null, currency: null, category: "Inventada", subcategory: null, description: null, confidence: 0.2 });
+    const r = app("scanReceipt", { image: IMG, mimeType: "image/png" }).receipt;
+    expect(r.amountMinor).toBeNull();
+    expect(r.categoryId).toBeNull();
+    expect(r.occurredOn).toBe(today());
+    expect(r.warnings.join(" ")).toMatch(/no parece una boleta.*total.*fecha.*confianza/);
+    expect(app("scanReceipt", { image: IMG, mimeType: "image/gif" })).toMatchObject({ ok: false });
+    expect(app("scanReceipt", { image: "no es base64!", mimeType: "image/jpeg" })).toMatchObject({ ok: false });
+  });
+
+  it("sin IA conectada avisa en vez de fallar en silencio", () => {
+    expect(app("scanReceipt", { image: IMG, mimeType: "image/jpeg" })).toMatchObject({ ok: false, error: expect.stringMatching(/IA/) });
+  });
+});

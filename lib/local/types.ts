@@ -45,6 +45,7 @@ export type InstructionRow = { version: number; status: string; generatedAt: str
 export type AutomationPrefs = {
   scheduleTime: string; timezone: string; initialPeriodDays: number; overlapHours: number; maxMessagesPerRun: number;
   movementTypes: string[]; extraHints: string; bankSenders: string[]; claudeGmailAccount: string;
+  disabledBanks: string[]; sendersOnly: boolean; gmailLabel: string;
 };
 /** Estado de la actualización nocturna, tal como lo entrega el script (sin secretos). */
 export type AutomationView = {
@@ -54,6 +55,14 @@ export type AutomationView = {
   lastSuccessAt: string | null; approved: InstructionRow | null; proposed: InstructionRow | null; configMatchesApproval: boolean;
   snapshot: Record<string, any>; account: string; movementTypes: Record<string, string>; hasAiKey: boolean; triggerActive: boolean;
   usage: { month: string; tokens: number };
+  /** Bancos que el script reconoce por remitente. Si falta, el script de la planilla es anterior a la versión 2.1. */
+  bankDomains?: string[];
+};
+
+/** Datos leídos de una foto de boleta (el usuario los revisa antes de guardar). */
+export type ReceiptScan = {
+  amountMinor: number | null; currency: string; occurredOn: string; occurredTime: string | null; merchant: string | null;
+  description: string; categoryId: string | null; subcategoryId: string | null; confidence: number; warnings: string[];
 };
 
 export type Connection = { url: string; token: string };

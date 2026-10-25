@@ -1,11 +1,13 @@
-# MisFinanzas
+# Mi saldo
+
+> El repositorio y la dirección siguen llamándose `MisFinanzas`; el nombre visible de la app es «Mi saldo».
 
 App gratuita para controlar ingresos y gastos personales. Es una PWA instalable, pensada primero para el celular, en español y con pesos chilenos (`$1.650.000`) por defecto.
 
-**MisFinanzas no tiene servidor.** La app es una página estática en GitHub Pages:
+**Mi saldo no tiene servidor.** La app es una página estática en GitHub Pages:
 
 - Cada usuario guarda sus datos en **su propia planilla de Google Sheets**, con una copia en su dispositivo.
-- La **actualización nocturna** corre en la cuenta de cada usuario, en su cuenta de Google o en su cuenta de Claude, nunca en un servidor de MisFinanzas.
+- La **actualización nocturna** corre en la cuenta de cada usuario, en su cuenta de Google o en su cuenta de Claude, nunca en un servidor de Mi saldo.
 
 Publicada en: **https://jagsantander.github.io/MisFinanzas/**
 
@@ -40,7 +42,7 @@ Publicada en: **https://jagsantander.github.io/MisFinanzas/**
 - **La ejecución nocturna depende de la cuenta del usuario**, como se pidió:
   - con la modalidad Claude, la tarea corre en la nube de Anthropic;
   - con la modalidad Google, corre en Google, con la IA que el usuario elija.
-- **Las APIs de OpenAI, Anthropic y Gemini no permiten crear tareas programadas.** Esto se revisó en la documentación de octubre de 2026. Por eso, en la modalidad Claude el usuario crea la tarea en claude.ai con la instrucción aprobada; MisFinanzas no puede crearla ni verla.
+- **Las APIs de OpenAI, Anthropic y Gemini no permiten crear tareas programadas.** Esto se revisó en la documentación de octubre de 2026. Por eso, en la modalidad Claude el usuario crea la tarea en claude.ai con la instrucción aprobada; Mi saldo no puede crearla ni verla.
 
 ### Seguridad
 
@@ -78,12 +80,20 @@ Publicada en: **https://jagsantander.github.io/MisFinanzas/**
    2. Pega `Code.gs` y el manifiesto `appsscript.json`.
    3. Ejecuta `instalar` y autoriza los permisos. Verás «Google no verificó esta app» porque el script es tuyo y no está publicado.
    4. Implementa la «Aplicación web» con «Ejecutar como: Yo» y «Quién tiene acceso: Cualquier usuario».
-   5. Copia la URL y el token (menú MisFinanzas → Mostrar datos de conexión).
-3. Elige la modalidad nocturna (Google o Claude), revisa la instrucción y pulsa **Validar y activar**.
-4. En la modalidad Claude, crea la tarea en claude.ai con la instrucción aprobada:
+   5. Copia la URL y el token (menú Mi saldo → Mostrar datos de conexión).
+3. Elige la modalidad nocturna y autoriza Gmail:
+   - **Google (gratis):** el permiso de Gmail (solo lectura) se otorga al ejecutar `instalar`; la app lo comprueba con «Probar acceso a Gmail». La IA puede ser una clave gratuita de Gemini.
+   - **Claude:** requiere Claude Pro o superior (la cuenta gratuita no permite tareas programadas). Gmail se autoriza en el conector de claude.ai.
+4. En «Qué correos leer y cuándo» elige los bancos, agrega remitentes propios, decide si leer solo esos remitentes y, opcionalmente, limita a una etiqueta de Gmail.
+5. Revisa la instrucción y pulsa **Validar y activar**.
+6. En la modalidad Claude, crea la tarea en claude.ai con la instrucción aprobada:
    - Gmail como único conector.
    - Las variables de entorno `MISFINANZAS_URL` y `MISFINANZAS_IMPORT_TOKEN`.
    - Acceso de red a `script.google.com` y `script.googleusercontent.com`.
+
+**Foto de boleta:** en «Agregar movimiento», «Fotografiar boleta» envía la foto (reducida) al script de la planilla, que la analiza con la clave de IA del usuario y devuelve total, fecha, comercio y categoría para revisar antes de guardar. La foto no se guarda.
+
+**Actualizar el script:** cuando cambia `Code.gs`, la app avisa en «Tu planilla». Hay que pegar el código nuevo y crear una nueva versión de la implementación (la URL no cambia).
 
 Si prefieres, puedes usar la app sin planilla: los datos quedan solo en ese dispositivo.
 
@@ -123,7 +133,7 @@ Para probar `out/` localmente en http://localhost:4000/MisFinanzas/:
 node scripts/serve-pages.mjs
 ```
 
-**Pruebas (28)**
+**Pruebas (34)**
 
 - **Del script** (`tests/apps-script/`): ejecutan el `Code.gs` real sobre un simulador de los servicios de Google (hojas, propiedades, disparadores, Gmail, UrlFetch y correo). Cubren:
   - instalación y tokens;
@@ -140,7 +150,9 @@ node scripts/serve-pages.mjs
   - una sola corrida por día;
   - la modalidad Claude (bloqueo antes de aprobar, validación por fragmento citado, pausa);
   - alertas sin duplicar;
-  - el horario de Santiago con cambio de horario.
+  - el horario de Santiago con cambio de horario;
+  - qué correos se leen: bancos desmarcados, remitentes propios, «solo estos remitentes» y etiqueta de Gmail;
+  - la foto de boleta: la imagen va a la IA del usuario, el total se valida y lo dudoso se marca para revisar.
 - **De la app** (`tests/`): dinero exacto, reglas, totales, período mensual, CSV, validación de la URL del script, panel, alertas, correcciones bloqueadas, reclasificación masiva con vista previa y deshacer.
 
 ### Publicar
@@ -156,7 +168,7 @@ La publicación es automática: al subir cambios a `main`, el workflow `.github/
 `android/` contiene una Trusted Web Activity que abre la app publicada. Para compilarla:
 
 ```bash
-./android/build-apk.sh https://jagsantander.github.io/MisFinanzas/ 1.1.0 3
+./android/build-apk.sh https://jagsantander.github.io/MisFinanzas/ 1.2.0 4
 ```
 
 Para ocultar la barra de direcciones, Android exige un archivo `assetlinks.json` en `https://jagsantander.github.io/.well-known/assetlinks.json`, es decir, en la raíz del dominio. En GitHub Pages eso requiere un repositorio llamado `jagsantander.github.io`. Sin ese archivo, la app funciona igual, pero muestra la barra con la URL.
@@ -170,6 +182,6 @@ Para ocultar la barra de direcciones, Android exige un archivo `assetlinks.json`
 - **Sin notificaciones push**, porque necesitan un servidor que las envíe. Hay avisos dentro de la app y por correo, enviados por el script respetando el horario de silencio.
 - **Hora aproximada en la modalidad Google:** Apps Script ejecuta los disparadores dentro de una ventana de unos 15 minutos.
 - **Límites diarios de Google:** Apps Script tiene cuotas (tiempo de ejecución, UrlFetch, correos). Para uso personal sobran, pero se pueden alcanzar con más de unos cientos de correos por noche.
-- **La tarea de Claude no se puede verificar ni administrar desde MisFinanzas.** Pausar o cancelar en la app bloquea las importaciones, pero la tarea hay que pausarla o eliminarla en claude.ai.
+- **La tarea de Claude no se puede verificar ni administrar desde Mi saldo.** Pausar o cancelar en la app bloquea las importaciones, pero la tarea hay que pausarla o eliminarla en claude.ai.
 - **Sin conversión de monedas.** Las otras monedas se muestran aparte y no se suman.
 - **Textos legales:** son una base. Revísalos con asesoría legal antes de ofrecer la app a terceros.

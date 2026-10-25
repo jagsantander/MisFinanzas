@@ -22,7 +22,7 @@ export default function DataPage() {
       </div>
       <h2 className="section">Eliminar datos</h2>
       <div className="card pad stack small">
-        <p style={{ margin: 0 }}>MisFinanzas no guarda tus datos en ningún servidor propio. Para eliminarlos:</p>
+        <p style={{ margin: 0 }}>Mi saldo no guarda tus datos en ningún servidor propio. Para eliminarlos:</p>
         <ul style={{ margin: 0, paddingLeft: 18 }}>
           <li><strong>Planilla:</strong> bórrala en Google Drive. Así eliminas los movimientos, el script, sus disparadores y la clave de IA guardada.</li>
           <li><strong>Este dispositivo:</strong> Perfil → Seguridad → Olvidar este dispositivo.</li>

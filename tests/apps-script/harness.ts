@@ -39,7 +39,7 @@ export class FakeSheet {
   setFrozenRows() {}
 }
 
-export type FakeMail = { id: string; from: string; subject: string; date: Date; body: string };
+export type FakeMail = { id: string; from: string; subject: string; date: Date; body: string; labels?: string[] };
 
 export function createGoogle(opts: { email?: string; now?: () => Date } = {}) {
   const sheets = new Map<string, FakeSheet>();
@@ -103,10 +103,13 @@ export function createGoogle(opts: { email?: string; now?: () => Date } = {}) {
     GmailApp: {
       search: (q: string) => {
         const after = Number(/after:(\d+)/.exec(q)?.[1] ?? 0) * 1000;
-        return mailbox.filter((m) => m.date.getTime() >= after).map((m) => ({ getMessages: () => [{
+        const label = /label:(\S+)/.exec(q)?.[1];
+        const slug = (n: string) => n.toLowerCase().replace(/[\s/]+/g, "-");
+        return mailbox.filter((m) => m.date.getTime() >= after && (!label || (m.labels ?? []).some((l) => slug(l) === label))).map((m) => ({ getMessages: () => [{
           getId: () => m.id, getFrom: () => m.from, getSubject: () => m.subject, getDate: () => m.date, getPlainBody: () => m.body,
         }] }));
       },
+      getUserLabels: () => [...new Set(mailbox.flatMap((m) => m.labels ?? []))].map((n) => ({ getName: () => n })),
     },
     UrlFetchApp: { fetch: (url: string, params: any) => {
       fetches.push({ url, params });

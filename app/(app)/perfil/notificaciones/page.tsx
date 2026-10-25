@@ -19,7 +19,7 @@ export default function NotificationPrefs() {
         <div className="item" style={{ cursor: "default" }}><div className="grow"><div className="t">Correo electrónico</div><div className="s">{st.connection ? `El script de tu planilla te escribe a ${st.account ?? "tu cuenta de Google"}.` : "Requiere conectar tu planilla."}</div></div>
           <Switch checked={p.notifyEmail} disabled={!st.connection} label="Correo" onChange={(v) => setP({ ...p, notifyEmail: v })} /></div>
       </div>
-      <Notice><p className="small">Las notificaciones push del teléfono requieren un servidor que las envíe, y MisFinanzas funciona sin servidor. Por eso los avisos llegan por correo y dentro de la app.</p></Notice>
+      <Notice><p className="small">Las notificaciones push del teléfono requieren un servidor que las envíe, y Mi saldo funciona sin servidor. Por eso los avisos llegan por correo y dentro de la app.</p></Notice>
       <h2 className="section">Horario de silencio</h2>
       <div className="card pad">
         <div className="grid2">

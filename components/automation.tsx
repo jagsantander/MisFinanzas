@@ -10,7 +10,7 @@ import { ConfirmSheet, Notice, useToast } from "./ui";
 const TIMES = Array.from({ length: 96 }, (_, i) => `${String(Math.floor(i / 4)).padStart(2, "0")}:${String((i % 4) * 15).padStart(2, "0")}`);
 const ZONES = ["America/Santiago", "Pacific/Easter", "America/Punta_Arenas", "America/Argentina/Buenos_Aires", "America/Lima", "America/Bogota", "America/Mexico_City", "Europe/Madrid", "UTC"];
 const PROVIDERS = [
-  { id: "gemini", label: "Google Gemini", hint: "Crea la clave en aistudio.google.com/apikey. Tiene un nivel gratuito con límites diarios.", placeholder: "AIza…" },
+  { id: "gemini", label: "Google Gemini", hint: "Crea la clave gratis en aistudio.google.com/apikey con tu cuenta de Google (no pide tarjeta). El nivel gratuito tiene límites diarios que alcanzan para uso personal.", placeholder: "AIza…" },
   { id: "openai", label: "OpenAI", hint: "Crea la clave en platform.openai.com/api-keys (requiere saldo en la API).", placeholder: "sk-…" },
   { id: "anthropic", label: "Anthropic (Claude)", hint: "Crea la clave en console.anthropic.com (requiere saldo en la API).", placeholder: "sk-ant-…" },
 ];
@@ -29,8 +29,8 @@ export function ModePicker({ a, onChanged }: { a: AutomationView; onChanged?: ()
     try { await script("setPrefs", { mode }); onChanged?.(); } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   };
   const opts = [
-    { id: "google", title: "En tu cuenta de Google", icon: "table", body: "El script de tu planilla lee Gmail cada noche y analiza los avisos con TU clave de IA (Gemini, OpenAI o Anthropic). Gratis con el nivel gratuito de Gemini. Solo Gmail." },
-    { id: "claude", title: "En tu cuenta de Claude", icon: "sparkle", body: "Creas una tarea programada en claude.ai (plan Pro o superior) que lee Gmail con su conector y envía los movimientos a tu planilla. Usa tu suscripción, no una clave de API." },
+    { id: "google", title: "En tu cuenta de Google", badge: { text: "Gratis", tone: "ok" }, icon: "table", body: "El script de tu planilla lee Gmail cada noche y analiza los avisos con TU clave de IA. Con una clave gratuita de Gemini (aistudio.google.com) no pagas nada. Solo Gmail." },
+    { id: "claude", title: "En tu cuenta de Claude", badge: { text: "Claude Pro o superior", tone: "warn" }, icon: "sparkle", body: "Creas una tarea programada en claude.ai que lee Gmail con su conector y envía los movimientos a tu planilla. La cuenta gratuita de Claude no permite tareas programadas." },
     { id: "none", title: "Sin actualización nocturna", icon: "pencil", body: "Registras los movimientos a mano. Puedes activarla después." },
   ];
   return (
@@ -39,7 +39,7 @@ export function ModePicker({ a, onChanged }: { a: AutomationView; onChanged?: ()
         <button key={o.id} role="radio" aria-checked={a.mode === o.id} disabled={busy} onClick={() => choose(o.id)} className="card pad row"
           style={{ textAlign: "left", cursor: "pointer", alignItems: "flex-start", borderColor: a.mode === o.id ? "var(--primary)" : undefined, borderWidth: a.mode === o.id ? 2 : 1, color: "var(--text)" }}>
           <span className="ico sm" style={{ background: "var(--primary-soft)", color: "var(--primary)" }}><Icon name={o.icon} /></span>
-          <div className="grow"><strong>{o.title}</strong><p className="small muted" style={{ margin: "4px 0 0" }}>{o.body}</p></div>
+          <div className="grow"><strong>{o.title}</strong>{o.badge && <> <span className={`badge ${o.badge.tone}`}>{o.badge.text}</span></>}<p className="small muted" style={{ margin: "4px 0 0" }}>{o.body}</p></div>
           {a.mode === o.id && <Icon name="check" />}
         </button>
       ))}
@@ -79,7 +79,7 @@ export function AiSetup({ a }: { a: AutomationView }) {
               {(models ?? (a.ai.model ? [a.ai.model] : [])).map((m) => <option key={m} value={m}>{m}</option>)}
             </select>
             <span className="hint">La lista viene de tu cuenta. Elige uno que admita respuestas en JSON (por ejemplo, gemini-2.5-flash).</span></div>
-          <div className="field"><label htmlFor="lim">Límite mensual de tokens en MisFinanzas (opcional)</label>
+          <div className="field"><label htmlFor="lim">Límite mensual de tokens en Mi saldo (opcional)</label>
             <div className="row"><input id="lim" className="input" inputMode="numeric" placeholder="Ej.: 2000000" value={limit} onChange={(e) => setLimit(e.target.value.replace(/\D/g, ""))} />
               <button className="btn sm" disabled={busy} onClick={() => run(async () => { await script("setAi", { monthlyTokenLimit: limit ? Number(limit) : null }); toast({ text: "Límite guardado" }); })}>Guardar</button></div>
             <span className="hint">Usados este mes: {a.usage.tokens.toLocaleString("es-CL")} tokens. Es un límite técnico (no un presupuesto personal) y no reemplaza la facturación de tu proveedor.</span></div>
@@ -105,6 +105,56 @@ export function AiSetup({ a }: { a: AutomationView }) {
       <ConfirmSheet open={confirm} onClose={() => setConfirm(false)} danger title="¿Eliminar la clave de IA?" confirmLabel="Eliminar clave"
         body={<p>Se borra de tu script y se pausa la actualización nocturna. <strong>No se borran tus movimientos.</strong></p>}
         onConfirm={() => run(async () => { await script("removeAiKey"); setConfirm(false); setReplacing(true); toast({ text: "Clave eliminada" }); })} />
+    </div>
+  );
+}
+
+/** Modalidad Google: comprueba que el script tenga permiso para leer Gmail y explica cómo darlo. */
+export function GmailAccess({ onLabels }: { onLabels?: (labels: string[]) => void }) {
+  const [res, setRes] = useState<{ ok: boolean; account?: string; labels?: string[]; error?: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const check = async () => {
+    setBusy(true);
+    try {
+      const r = await script<{ gmail: { ok: boolean; account?: string; labels?: string[]; error?: string } }>("checkGmail");
+      setRes(r.gmail);
+      if (r.gmail.ok) onLabels?.(r.gmail.labels ?? []);
+    } catch (e) {
+      const msg = (e as Error).message;
+      setRes({ ok: false, error: /Acción desconocida/.test(msg) ? "El script de tu planilla es de una versión anterior: actualízalo en Perfil → Tu planilla." : msg });
+    } finally { setBusy(false); }
+  };
+  useEffect(() => { void check(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <div className="card pad stack">
+      <p className="small" style={{ margin: 0 }}>Tu script lee Gmail con un permiso de <strong>solo lectura</strong> que Google te pidió al ejecutar <code>instalar</code> en tu planilla. Nadie más recibe ese permiso.</p>
+      <button className="btn sm" disabled={busy} onClick={check}><Icon name="mail" size={16} /> {busy ? "Probando…" : "Probar acceso a Gmail"}</button>
+      {res?.ok && <Notice tone="ok"><p className="small">Gmail autorizado{res.account ? ` para ${res.account}` : ""}. {res.labels?.length ? `Encontré ${res.labels.length} etiquetas.` : ""}</p></Notice>}
+      {res && !res.ok && (
+        <Notice tone="danger">
+          <p className="small">No se pudo leer Gmail: {res.error}</p>
+          <ol className="small" style={{ paddingLeft: 20, margin: "6px 0 0" }}>
+            <li>Abre tu planilla → <strong>Extensiones → Apps Script</strong>.</li>
+            <li>Elige la función <code>instalar</code> y pulsa <strong>Ejecutar</strong>.</li>
+            <li>Acepta los permisos, incluido «Ver tus mensajes de correo electrónico y la configuración» (solo lectura).</li>
+            <li>Vuelve aquí y prueba de nuevo.</li>
+          </ol>
+        </Notice>
+      )}
+    </div>
+  );
+}
+
+/** Modalidad Claude: pasos de autorización (plan, conector de Gmail) antes de configurar la tarea. */
+export function ClaudeAuthSteps() {
+  return (
+    <div className="card pad stack">
+      <Notice tone="warn"><p className="small"><strong>Necesitas Claude Pro o superior.</strong> La cuenta gratuita de Claude no permite tareas programadas. Si buscas una opción gratuita, elige «En tu cuenta de Google» con una clave gratuita de Gemini.</p></Notice>
+      <ol className="stack small" style={{ paddingLeft: 20, margin: 0, gap: 8 }}>
+        <li><strong>Autoriza Gmail en Claude:</strong> abre <a href="https://claude.ai/customize/connectors" target="_blank" rel="noopener">claude.ai → Conectores</a>, pulsa <strong>Conectar</strong> en Gmail e inicia sesión con la cuenta donde llegan los avisos del banco. Google te mostrará los permisos que pide Claude.</li>
+        <li>Escribe abajo esa misma cuenta de Gmail y guárdala.</li>
+        <li>Genera y valida la instrucción. Después te mostraremos cómo crear la tarea en claude.ai.</li>
+      </ol>
     </div>
   );
 }
@@ -153,8 +203,10 @@ export function ClaudeTaskSteps({ a }: { a: AutomationView }) {
 }
 
 /** Preferencias validadas (no texto libre de la instrucción). Cambiarlas exige nueva validación. */
-export function PrefsForm({ a, onSaved, compact }: { a: AutomationView; onSaved: () => void; compact?: boolean }) {
-  const [p, setP] = useState<AutomationPrefs>(a.prefs);
+export function PrefsForm({ a, onSaved, compact, labels }: { a: AutomationView; onSaved: () => void; compact?: boolean; labels?: string[] | null }) {
+  const [p, setP] = useState<AutomationPrefs>({ ...a.prefs, disabledBanks: a.prefs.disabledBanks ?? [], sendersOnly: a.prefs.sendersOnly ?? false, gmailLabel: a.prefs.gmailLabel ?? "" });
+  const banks = a.bankDomains ?? [];
+  const toggleBank = (d: string) => setP({ ...p, disabledBanks: p.disabledBanks.includes(d) ? p.disabledBanks.filter((x) => x !== d) : [...p.disabledBanks, d] });
   const [senders, setSenders] = useState(a.prefs.bankSenders.join(", "));
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -178,7 +230,27 @@ export function PrefsForm({ a, onSaved, compact }: { a: AutomationView; onSaved:
           {Object.entries(a.movementTypes).map(([k, v]) => <label key={k} className="check" style={{ padding: "4px 0" }}><input type="checkbox" checked={p.movementTypes.includes(k)} onChange={() => toggle(k)} /><span>{v}</span></label>)}
         </fieldset>
         <div className="field"><label htmlFor="mx">Máximo de correos por noche</label><input id="mx" type="number" className="input" min={10} max={150} value={p.maxMessagesPerRun} onChange={(e) => setP({ ...p, maxMessagesPerRun: Number(e.target.value) })} /></div>
-        <div className="field"><label htmlFor="bs">Remitentes bancarios adicionales (dominios)</label><input id="bs" className="input" value={senders} onChange={(e) => setSenders(e.target.value)} placeholder="mibanco.cl, otrabilletera.com" /></div>
+        <fieldset className="field" style={{ border: 0, padding: 0 }}><legend className="label">Correos que se leen</legend>
+          {banks.length > 0 && (
+            <details className="card pad" style={{ marginBottom: 8 }}>
+              <summary>Bancos y billeteras reconocidos ({banks.length - p.disabledBanks.length} de {banks.length} marcados)</summary>
+              <div className="row" style={{ gap: 8, margin: "8px 0" }}>
+                <button type="button" className="link-btn" onClick={() => setP({ ...p, disabledBanks: [] })}>Marcar todos</button>
+                <button type="button" className="link-btn" onClick={() => setP({ ...p, disabledBanks: [...banks] })}>Desmarcar todos</button>
+              </div>
+              <div className="grid2">{banks.map((d) => <label key={d} className="check small" style={{ padding: "2px 0" }}><input type="checkbox" checked={!p.disabledBanks.includes(d)} onChange={() => toggleBank(d)} /><span>{d}</span></label>)}</div>
+            </details>
+          )}
+          <label htmlFor="bs" className="small">Otros remitentes (dominio o dirección exacta)</label>
+          <input id="bs" className="input" value={senders} onChange={(e) => setSenders(e.target.value)} placeholder="mibanco.cl, avisos@mitarjeta.com" />
+          <label className="check" style={{ padding: "8px 0 0" }}><input type="checkbox" checked={p.sendersOnly} onChange={(e) => setP({ ...p, sendersOnly: e.target.checked })} />
+            <span>Leer <strong>solo</strong> estos remitentes {banks.length > 0 && "(marcados y otros)"}. Si no, también se leen correos de cualquier remitente cuyo asunto parezca un aviso financiero («compra», «transferencia», «pago»…).</span></label>
+        </fieldset>
+        <div className="field"><label htmlFor="gl">Etiqueta de Gmail (opcional)</label>
+          {labels && labels.length > 0
+            ? <select id="gl" className="input" value={p.gmailLabel} onChange={(e) => setP({ ...p, gmailLabel: e.target.value })}><option value="">Todo el correo</option>{[...new Set([p.gmailLabel, ...labels].filter(Boolean))].map((l) => <option key={l} value={l}>{l}</option>)}</select>
+            : <input id="gl" className="input" value={p.gmailLabel} maxLength={60} onChange={(e) => setP({ ...p, gmailLabel: e.target.value })} placeholder="Ej.: Finanzas (vacío = todo el correo)" />}
+          <span className="hint">Si eliges una etiqueta, solo se leen los correos que la tengan. En Gmail puedes crear un filtro que la aplique a los avisos de tus bancos.</span></div>
         <div className="field"><label htmlFor="hx">Indicaciones para clasificar (opcional)</label><textarea id="hx" className="input" maxLength={500} value={p.extraHints} onChange={(e) => setP({ ...p, extraHints: e.target.value })} placeholder="Ej.: los cargos de «Copec» son Transporte › Combustible" />
           <span className="hint">No pueden modificar las restricciones de seguridad ni incluir enlaces o credenciales.</span></div>
       </>}
@@ -210,7 +282,7 @@ export function ReviewInstruction({ a, onApproved, onCancel, showApproved }: { a
   if (!v) return (
     <div className="stack">
       {!ready && <Notice tone="warn"><p>{a.mode === "google" ? "Conecta tu IA y elige un modelo antes de generar la instrucción." : a.mode === "claude" ? "Indica la cuenta de Gmail conectada a Claude antes de generar la instrucción." : "Elige primero dónde se ejecutará la actualización nocturna."}</p></Notice>}
-      <p>{a.mode === "google" ? "Tu IA personalizará las pautas de clasificación sobre una plantilla controlada por MisFinanzas." : "MisFinanzas armará la instrucción que pegarás en tu tarea de Claude."} Nada se activa hasta que la valides.</p>
+      <p>{a.mode === "google" ? "Tu IA personalizará las pautas de clasificación sobre una plantilla controlada por Mi saldo." : "Mi saldo armará la instrucción que pegarás en tu tarea de Claude."} Nada se activa hasta que la valides.</p>
       {err && <Notice tone="danger"><p>{err}</p></Notice>}
       <button className="btn primary block" disabled={!ready || busy !== null} onClick={generate}>{busy === "gen" ? "Generando…" : "Generar instrucción"}</button>
       <button className="btn block" onClick={onCancel}>Cancelar</button>
@@ -290,7 +362,7 @@ export function AutomationControls({ a }: { a: AutomationView }) {
       {a.mode === "claude" && a.status === "paused" && <p className="small muted" style={{ margin: 0 }}>Mientras esté pausada, tu planilla rechaza las importaciones de Claude. Para ahorrar uso, pausa también la tarea en claude.ai.</p>}
       {a.status !== "cancelled" && a.approved && <button className="btn danger block" onClick={() => setConfirmCancel(true)}>Cancelar automatización</button>}
       <ConfirmSheet open={confirmCancel} onClose={() => setConfirmCancel(false)} danger title="¿Cancelar la actualización nocturna?" confirmLabel="Cancelar automatización" busy={busy}
-        body={<>{a.mode === "google" ? <p>Se elimina el disparador diario de tu script y se revoca la aprobación.</p> : <p>Tu planilla dejará de aceptar importaciones de Claude. <strong>La tarea en claude.ai sigue existiendo:</strong> elimínala tú en claude.ai/code/routines (MisFinanzas no puede hacerlo).</p>}<p><strong>No se borran tus movimientos.</strong></p></>}
+        body={<>{a.mode === "google" ? <p>Se elimina el disparador diario de tu script y se revoca la aprobación.</p> : <p>Tu planilla dejará de aceptar importaciones de Claude. <strong>La tarea en claude.ai sigue existiendo:</strong> elimínala tú en claude.ai/code/routines (Mi saldo no puede hacerlo).</p>}<p><strong>No se borran tus movimientos.</strong></p></>}
         onConfirm={async () => { await act("cancel", "Automatización cancelada"); setConfirmCancel(false); }} />
     </section>
   );

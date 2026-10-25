@@ -7,13 +7,13 @@ import { saveSettings, script } from "@/lib/local/store";
 import { Icon } from "@/components/Icon";
 import { Notice, useToast } from "@/components/ui";
 import { SheetConnection } from "@/components/sheet";
-import { AiSetup, ClaudeSetup, ClaudeTaskSteps, ModePicker, PrefsForm, ReviewInstruction } from "@/components/automation";
+import { AiSetup, ClaudeAuthSteps, ClaudeSetup, ClaudeTaskSteps, GmailAccess, ModePicker, PrefsForm, ReviewInstruction } from "@/components/automation";
 import { formatMoney, parseAmount } from "@/lib/money";
 
 const STEPS = ["preferences", "sheet", "mode", "ai", "period", "instruction", "first_sync", "budgets"] as const;
 type Step = (typeof STEPS)[number];
 const TITLES: Record<Step, string> = {
-  preferences: "Te damos la bienvenida", sheet: "Conecta tu planilla", mode: "¿Dónde corre la actualización nocturna?", ai: "Conecta tu IA",
+  preferences: "Te damos la bienvenida", sheet: "Conecta tu planilla", mode: "¿Dónde corre la actualización nocturna?", ai: "Autoriza Gmail y tu IA",
   period: "Período de importación inicial", instruction: "Revisa y autoriza tu actualización nocturna", first_sync: "Primera sincronización", budgets: "Presupuestos por categoría",
 };
 
@@ -40,7 +40,7 @@ export default function Welcome() {
   const idx = STEPS.indexOf(step);
   return (
     <main className="page">
-      <div className="brand"><span>Mis<b>Finanzas</b></span></div>
+      <div className="brand"><span>Mi <b>saldo</b></span></div>
       <div className="row between" style={{ marginTop: 16 }}>
         <span className="small muted">Paso {idx + 1} de {STEPS.length}</span>
         <button className="link-btn small" onClick={finish}>Omitir y usar manualmente</button>
@@ -59,8 +59,8 @@ export default function Welcome() {
         )}
         {step === "mode" && a && <><ModePicker a={a} /><button className="btn primary block" onClick={() => go(1)}>Continuar</button></>}
         {step === "ai" && a && (a.mode === "google"
-          ? <><AiSetup a={a} />{a.hasAiKey && a.ai.model ? <button className="btn primary block" onClick={() => go(1)}>Continuar</button> : <p className="small muted">Guarda tu clave y elige un modelo para continuar.</p>}</>
-          : <><p>Indica la cuenta de Gmail que conectarás en Claude. Tras aprobar la instrucción, te mostraremos cómo crear la tarea.</p><ClaudeSetup a={a} />{a.prefs.claudeGmailAccount ? <button className="btn primary block" onClick={() => go(1)}>Continuar</button> : null}</>)}
+          ? <><h2 className="section">Autoriza Gmail</h2><GmailAccess /><h2 className="section">Tu IA</h2><AiSetup a={a} />{a.hasAiKey && a.ai.model ? <button className="btn primary block" onClick={() => go(1)}>Continuar</button> : <p className="small muted">Guarda tu clave y elige un modelo para continuar.</p>}</>
+          : <><ClaudeAuthSteps /><ClaudeSetup a={a} />{a.prefs.claudeGmailAccount ? <button className="btn primary block" onClick={() => go(1)}>Continuar</button> : null}</>)}
         {step === "period" && a && <><p>¿Desde cuándo importar en la primera sincronización? Después solo se buscan correos nuevos.</p><PrefsForm a={a} compact onSaved={() => go(1)} /></>}
         {step === "instruction" && a && <ReviewInstruction a={a} onApproved={() => go(1)} onCancel={() => go(1)} />}
         {step === "first_sync" && a && <FirstSync onNext={() => go(1)} />}
@@ -78,7 +78,7 @@ function PrefsStep({ onNext }: { onNext: () => void }) {
   const [tz, setTz] = useState(st.settings.timezone);
   return (
     <>
-      <p>MisFinanzas ordena tus ingresos y gastos. Usaremos pesos chilenos y la hora de Santiago por defecto.</p>
+      <p>Mi saldo ordena tus ingresos y gastos. Usaremos pesos chilenos y la hora de Santiago por defecto.</p>
       <div className="field"><label htmlFor="n">¿Cómo te llamas?</label><input id="n" className="input" value={name} onChange={(e) => setName(e.target.value)} autoComplete="given-name" /></div>
       <div className="field"><label htmlFor="c">Moneda principal</label><select id="c" className="input" value={currency} onChange={(e) => setCurrency(e.target.value)}><option value="CLP">Peso chileno · CLP ($1.650.000)</option><option value="USD">Dólar · USD</option><option value="EUR">Euro · EUR</option></select></div>
       <div className="field"><label htmlFor="t">Zona horaria</label><select id="t" className="input" value={tz} onChange={(e) => setTz(e.target.value)}>{["America/Santiago", "Pacific/Easter", "America/Punta_Arenas", "America/Argentina/Buenos_Aires", "America/Lima", "America/Bogota", "America/Mexico_City", "Europe/Madrid", "UTC"].map((z) => <option key={z}>{z}</option>)}</select></div>

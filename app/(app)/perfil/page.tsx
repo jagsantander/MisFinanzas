@@ -3,6 +3,7 @@ import Link from "next/link";
 import { AUTOMATION_STATUS, fmtDateTime, useStore } from "@/lib/client";
 import { Icon } from "@/components/Icon";
 import { lockConfigured } from "@/lib/local/lock";
+import { localTheme } from "@/components/AppShell";
 import { useEffect, useState } from "react";
 
 function Row({ href, icon, color, title, value, sub }: { href: string; icon: string; color: string; title: string; value?: string; sub?: string }) {
@@ -21,7 +22,8 @@ export default function Profile() {
   const st = useStore();
   const s = st.settings;
   const [lock, setLock] = useState(false);
-  useEffect(() => setLock(lockConfigured()), []);
+  const [theme, setTheme] = useState("system");
+  useEffect(() => { setLock(lockConfigured()); setTheme(localTheme()); }, []);
   const initials = (s.name || "MF").split(/\s+/).map((p) => p[0]).slice(0, 2).join("").toUpperCase();
   const a = st.automation;
   return (
@@ -39,7 +41,7 @@ export default function Profile() {
         <Row href="/perfil/preferencias" icon="dollar" color="#11734f" title="Moneda y zona horaria" value={`${s.currency} · ${s.timezone.split("/").pop()?.replace("_", " ")}`} />
         <Row href="/perfil/preferencias" icon="calendar" color="#7c5cd6" title="Inicio del mes" value={`Día ${s.monthStartDay}`} />
         <Row href="/perfil/notificaciones" icon="bell" color="#11734f" title="Avisos" value={s.notifyEmail ? "App y correo" : "Solo en la app"} sub={`Silencio ${s.quietStart}–${s.quietEnd}`} />
-        <Row href="/perfil/preferencias" icon="sun" color="#e08a00" title="Apariencia" value={THEME[s.theme]} />
+        <Row href="/perfil/preferencias" icon="sun" color="#e08a00" title="Apariencia" value={THEME[theme]} />
         <Row href="/perfil/preferencias" icon="percent" color="#c23d2d" title="Umbrales de presupuesto" value={s.budgetThresholds.map((t) => `${t}%`).join(", ")} />
       </div>
 

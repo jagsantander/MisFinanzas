@@ -5,7 +5,7 @@ export default function Privacy() {
       <h1 className="title">Tratamiento de datos</h1>
       <p className="muted">Texto base: adáptalo a la Ley 19.628 y a la Ley 21.719 antes de ofrecer la app a terceros.</p>
       <h2 className="section">Sin servidor propio</h2>
-      <p>MisFinanzas es una página estática. Tus datos se guardan en tu propia planilla de Google Sheets y en los dispositivos donde usas la app. Quien publica MisFinanzas no recibe ni almacena tus movimientos, tus correos ni tus claves.</p>
+      <p>Mi saldo es una página estática. Tus datos se guardan en tu propia planilla de Google Sheets y en los dispositivos donde usas la app. Quien publica Mi saldo no recibe ni almacena tus movimientos, tus correos ni tus claves.</p>
       <h2 className="section">Qué se guarda y dónde</h2>
       <ul>
         <li>En tu planilla: movimientos, categorías, reglas, presupuestos, avisos y el registro de ejecuciones.</li>

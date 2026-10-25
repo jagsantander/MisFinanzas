@@ -1,20 +1,22 @@
 "use client";
+import { useState } from "react";
 import Link from "next/link";
 import { fmtDateTime, RUN_STATUS, useStore } from "@/lib/client";
 import { Icon } from "@/components/Icon";
 import { Notice, useToast } from "@/components/ui";
-import { AiSetup, AutomationControls, ClaudeSetup, ClaudeTaskSteps, ModePicker, PrefsForm } from "@/components/automation";
+import { AiSetup, AutomationControls, ClaudeAuthSteps, ClaudeSetup, ClaudeTaskSteps, GmailAccess, ModePicker, PrefsForm } from "@/components/automation";
 import { SheetConnection } from "@/components/sheet";
 
 export default function AutomationPage() {
   const st = useStore();
   const toast = useToast();
   const a = st.automation;
+  const [labels, setLabels] = useState<string[] | null>(null);
   return (
     <main className="page">
       <Link href="/" className="link-btn"><Icon name="chevronLeft" size={18} /> Inicio</Link>
       <h1 className="title">Actualización nocturna</h1>
-      <p className="subtitle">Importa tus avisos financieros mientras duermes, sin servidor de MisFinanzas: corre en tu cuenta de Google o en tu cuenta de Claude.</p>
+      <p className="subtitle">Importa tus avisos financieros mientras duermes, sin servidor de Mi saldo: corre en tu cuenta de Google o en tu cuenta de Claude.</p>
       {!st.connection || !a ? (
         <div className="stack">
           <Notice tone="warn"><p>Primero conecta tu planilla: ahí se guardan los movimientos que llegan de noche.</p></Notice>
@@ -30,22 +32,27 @@ export default function AutomationPage() {
 
           <h2 className="section">Dónde se ejecuta</h2>
           <ModePicker a={a} />
-          {a.mode === "google" && <><h2 className="section">Tu inteligencia artificial</h2><AiSetup a={a} /></>}
+          {!a.bankDomains && <Notice tone="warn"><p className="small">El script de tu planilla es de una versión anterior. <Link href="/conexiones">Actualízalo</Link> para elegir bancos, probar el acceso a Gmail y leer boletas.</p></Notice>}
+          {a.mode === "google" && <><h2 className="section">1. Autoriza Gmail</h2><GmailAccess onLabels={setLabels} /></>}
+          {a.mode === "claude" && <><h2 className="section">1. Autoriza Gmail en Claude</h2><ClaudeAuthSteps /></>}
+          <h2 className="section" id="ia">{a.mode === "google" ? "2. Tu inteligencia artificial" : "Tu IA para leer boletas (opcional)"}</h2>
+          {a.mode !== "google" && <p className="small muted">La foto de una boleta se analiza con una clave de IA guardada en tu script. Con una clave gratuita de Gemini no tiene costo.</p>}
+          <AiSetup a={a} />
           {a.mode === "claude" && (
             <>
-              <h2 className="section">Tu tarea de Claude</h2>
+              <h2 className="section">2. Tu tarea de Claude</h2>
               <ClaudeSetup a={a} />
               {a.approved && <details className="card pad" open={a.status === "active" && !a.lastRun}><summary>Cómo crear la tarea en claude.ai</summary><div style={{ marginTop: 8 }}><ClaudeTaskSteps a={a} /></div></details>}
-              <p className="small muted">MisFinanzas no puede crear ni ver tu tarea de Claude (Anthropic no ofrece una API para eso). Sabrás que funciona cuando aparezca aquí la última importación.</p>
+              <p className="small muted">Mi saldo no puede crear ni ver tu tarea de Claude (Anthropic no ofrece una API para eso). Sabrás que funciona cuando aparezca aquí la última importación.</p>
             </>
           )}
 
           {a.mode !== "none" && <>
-            <h2 className="section" id="preferencias">Preferencias</h2>
+            <h2 className="section" id="preferencias">3. Qué correos leer y cuándo</h2>
             <div className="card pad">
               {a.status === "active" && <Notice tone="warn"><p className="small">Cambiar horario o alcance genera una nueva versión que debes validar; mientras tanto, la ejecución automática queda bloqueada.</p></Notice>}
               <div style={{ height: 8 }} />
-              <PrefsForm a={a} onSaved={() => toast({ text: "Preferencias guardadas" })} />
+              <PrefsForm a={a} labels={labels} onSaved={() => toast({ text: "Preferencias guardadas" })} />
             </div>
           </>}
 
