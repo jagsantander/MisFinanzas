@@ -18,6 +18,7 @@ self.addEventListener("fetch", (e) => {
   if (req.method !== "GET") return;
   const url = new URL(req.url);
   if (url.origin !== location.origin || !url.pathname.startsWith(BASE)) return;
+  if (url.pathname.startsWith(BASE + "descargas/")) return; // descargas (APK): directo de la red, sin caché
   if (url.pathname.includes("/_next/static/") || url.pathname.includes("/icons/")) {
     e.respondWith(caches.match(req).then((hit) => hit || fetch(req).then((res) => { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); return res; })));
     return;
