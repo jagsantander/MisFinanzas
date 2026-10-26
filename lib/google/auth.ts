@@ -8,9 +8,14 @@
 import { GOOGLE_CLIENT_ID } from "../config";
 
 export const GOOGLE_SCOPES = "https://www.googleapis.com/auth/drive.file openid email";
+/**
+ * Solo para «Activar lectura de correos»: crear el script en la planilla del usuario e implementarlo.
+ * MiSaldo nunca pide permiso de Gmail: lo pide el script del propio usuario, que corre en su cuenta.
+ */
+export const SCRIPT_SCOPES = "https://www.googleapis.com/auth/script.projects https://www.googleapis.com/auth/script.deployments";
 const TOKEN_KEY = "mf-google-token";
 
-type TokenResponse = { access_token?: string; expires_in?: number; error?: string; error_description?: string };
+type TokenResponse = { access_token?: string; expires_in?: number; scope?: string; error?: string; error_description?: string };
 type TokenClient = { requestAccessToken: (o?: { prompt?: string; login_hint?: string }) => void };
 type Gis = { accounts: { oauth2: { initTokenClient: (c: Record<string, unknown>) => TokenClient; revoke: (t: string, cb?: () => void) => void } } };
 
@@ -35,11 +40,13 @@ function loadGis(): Promise<Gis> {
   return gisPromise;
 }
 
-/** Token vigente (con un minuto de margen) o null. */
-export function currentToken(): string | null {
+/** Token vigente (con un minuto de margen) o null. Con `scopes`, solo si el token incluye esos permisos. */
+export function currentToken(scopes?: string): string | null {
   try {
-    const t = JSON.parse(sessionStorage.getItem(TOKEN_KEY) ?? "null") as { token: string; exp: number } | null;
-    return t && t.exp - 60_000 > Date.now() ? t.token : null;
+    const t = JSON.parse(sessionStorage.getItem(TOKEN_KEY) ?? "null") as { token: string; exp: number; scope?: string } | null;
+    if (!t || t.exp - 60_000 <= Date.now()) return null;
+    if (scopes && !scopes.split(" ").every((s) => (t.scope ?? "").split(" ").includes(s))) return null;
+    return t.token;
   } catch { return null; }
 }
 
@@ -47,16 +54,20 @@ export function currentToken(): string | null {
  * Pide un token a Google. Debe llamarse desde un toque del usuario (abre una ventana de Google).
  * Con prompt "" y la sesión abierta, la ventana se cierra sola sin pedir nada.
  */
-export async function requestToken(opts: { prompt?: "" | "consent" | "select_account"; hint?: string } = {}): Promise<string> {
+export async function requestToken(opts: { prompt?: "" | "consent" | "select_account"; hint?: string; scopes?: string } = {}): Promise<string> {
   if (!GOOGLE_CLIENT_ID) throw new GoogleAuthError("El inicio de sesión con Google aún no está configurado en esta app", "unavailable");
   const gis = await loadGis();
   return new Promise<string>((ok, fail) => {
     const client = gis.accounts.oauth2.initTokenClient({
       client_id: GOOGLE_CLIENT_ID,
-      scope: GOOGLE_SCOPES,
+      scope: opts.scopes ? `${GOOGLE_SCOPES} ${opts.scopes}` : GOOGLE_SCOPES,
+      include_granted_scopes: true,
       callback: (r: TokenResponse) => {
         if (!r.access_token) return fail(new GoogleAuthError(r.error === "access_denied" ? "No diste permiso a MiSaldo para usar tu planilla" : r.error_description || "Google no entregó el permiso", "denied"));
-        try { sessionStorage.setItem(TOKEN_KEY, JSON.stringify({ token: r.access_token, exp: Date.now() + (r.expires_in ?? 3600) * 1000 })); } catch { /* sin almacenamiento */ }
+        if (opts.scopes && !opts.scopes.split(" ").every((s) => (r.scope ?? "").split(" ").includes(s))) {
+          return fail(new GoogleAuthError("Falta marcar los permisos para instalar el script en tu planilla. Inténtalo de nuevo y marca todas las casillas.", "denied"));
+        }
+        try { sessionStorage.setItem(TOKEN_KEY, JSON.stringify({ token: r.access_token, exp: Date.now() + (r.expires_in ?? 3600) * 1000, scope: r.scope ?? GOOGLE_SCOPES })); } catch { /* sin almacenamiento */ }
         ok(r.access_token);
       },
       error_callback: (e: { type?: string }) => fail(new GoogleAuthError(

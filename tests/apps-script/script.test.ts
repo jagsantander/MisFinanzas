@@ -440,3 +440,109 @@ describe("planilla directa con Google (sin script)", () => {
     }
   });
 });
+
+describe("instalado por la app (API de Apps Script)", () => {
+  const sha = async (s: string) => (await import("node:crypto")).createHash("sha256").update(s).digest("hex");
+  async function provisioned() {
+    const token = "b".repeat(64);
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync("apps-script/Code.gs", "utf8").replace("var BOOT_TOKEN_HASH = '';", `var BOOT_TOKEN_HASH = '${await sha(token)}';`);
+    const g = createGoogle({ source: src });
+    return { g, token, call: (action: string, extra: Record<string, unknown> = {}) => g.post({ action, token, ...extra }) };
+  }
+
+  it("la app se conecta con su token sin pasar por el menú; la primera llamada prepara la planilla", async () => {
+    const { g, call } = await provisioned();
+    expect(g.props.get("APP_TOKEN")).toBeUndefined();
+    const r = call("ping");
+    expect(r.ok).toBe(true);
+    expect(g.props.get("IMPORT_TOKEN")).toBeTruthy(); // se instaló solo
+    expect(g.sheets.get("Movimientos")).toBeTruthy();
+    expect(g.post({ action: "ping", token: "c".repeat(64) })).toMatchObject({ ok: false, code: "unauthorized" });
+  });
+
+  it("regenerar el token desde la planilla revoca el de la app; una copia tampoco lo acepta", async () => {
+    const a = await provisioned();
+    expect(a.call("ping").ok).toBe(true);
+    a.g.g.regenerarTokenApp = a.g.g.regenerarTokenApp; // sin interfaz: mostrarConexion falla, pero el token ya cambió
+    try { a.g.g.regenerarTokenApp(); } catch { /* sin interfaz */ }
+    expect(a.call("ping")).toMatchObject({ ok: false });
+
+    const b = await provisioned();
+    expect(b.call("ping").ok).toBe(true);
+    b.g.sheetId.value = "planilla-copia";
+    expect(b.call("ping")).toMatchObject({ ok: false });
+  });
+
+  it("la página del permiso prepara la planilla y no muestra datos", async () => {
+    const { g } = await provisioned();
+    const page = g.g.doGet();
+    expect(page.html).toContain("Permiso concedido");
+    expect(g.props.get("APP_TOKEN")).toBeTruthy();
+    expect(page.html).not.toContain(g.props.get("APP_TOKEN"));
+  });
+});
+
+describe("actualización manual («Actualizar»)", () => {
+  function setupManual() {
+    aiOk("gemini");
+    app("setAiKey", { provider: "gemini", apiKey: "AIzaPRUEBA0000000000000000000000000" });
+    app("setAi", { model: "gemini-2.5-flash" });
+    const r = app("setPrefs", { mode: "manual" });
+    expect(r.automation.status).toBe("manual");
+  }
+  const mail = (id: string, minutesAgo: number) => {
+    G.mailbox.push({ id, from: "Banco <avisos@bancochile.cl>", subject: `Compra ${id}`, date: new Date(Date.now() - minutesAgo * 60_000), body: `Compra por $1.000 en TIENDA ${id}` });
+    scripted.set(`Compra ${id}`, { message_type: "transaction_notice", operations: [op({ amount_text: "$1.000", merchant: `TIENDA ${id}` })] });
+  };
+
+  it("funciona sin validar una instrucción ni crear disparadores", () => {
+    setupManual();
+    mail("m1", 10);
+    const r = app("runNow");
+    expect(r.ok).toBe(true);
+    expect(r.run.movementsCreated).toBe(1);
+    expect(G.triggers.filter((t) => t.fn === "nightlyRun")).toHaveLength(0);
+    expect(G.g.nightlyRun).toBeTypeOf("function");
+  });
+
+  it("cada «Actualizar» lee solo lo nuevo desde la anterior, sin volver a la IA por lo ya leído", () => {
+    setupManual();
+    mail("m1", 30);
+    app("runNow");
+    const calls = G.fetches.filter((f) => f.url.includes(":generateContent")).length;
+    mail("m2", 0);
+    const r = app("runNow");
+    expect(r.run.movementsCreated).toBe(1);
+    expect(G.fetches.filter((f) => f.url.includes(":generateContent")).length).toBe(calls + 1);
+    expect(movements().map((m) => m.merchant).sort()).toEqual(["TIENDA m1", "TIENDA m2"]);
+  });
+
+  it("si quedan correos por leer, la siguiente pulsación continúa donde quedó", () => {
+    setupManual();
+    app("setPrefs", { prefs: { maxMessagesPerRun: 10 } });
+    for (let i = 0; i < 13; i++) mail(`n${i}`, 60 - i);
+    const r1 = app("runNow");
+    expect(r1.run.movementsCreated).toBe(10);
+    expect(r1.run.note).toMatch(/Actualizar/);
+    const r2 = app("runNow");
+    expect(r2.run.movementsCreated).toBe(3);
+    expect(movements()).toHaveLength(13);
+  });
+
+  it("el resumen de una actualización manual no se envía por correo", () => {
+    setupManual();
+    mail("m1", 5);
+    app("runNow");
+    const n = rows("Avisos").map((r) => JSON.parse(String(r[3])));
+    expect(n.find((x: any) => x.type === "sync_done").emailStatus).toBe("skip");
+    expect(G.sentMail).toHaveLength(0);
+  });
+
+  it("pasar de manual a nocturna exige validar la instrucción", () => {
+    setupManual();
+    const r = app("setPrefs", { mode: "google" });
+    expect(r.automation.status).toBe("pending_approval");
+    expect(app("runNow")).toMatchObject({ ok: false });
+  });
+});

@@ -127,3 +127,16 @@ export async function writeSettings(token: string, id: string, settings: Setting
 }
 
 export const spreadsheetUrl = (id: string) => `https://docs.google.com/spreadsheets/d/${id}/edit`;
+
+/**
+ * Datos privados de MiSaldo guardados en el archivo de la planilla (appProperties: solo los ve esta app, con el
+ * permiso del usuario). Ahí queda el script instalado, para que otro dispositivo se conecte solo.
+ */
+export type SheetAppProps = Partial<Record<"misaldo" | "msScript" | "msDeploy" | "msToken", string>>;
+export async function readAppProps(token: string, id: string): Promise<SheetAppProps> {
+  const r = await g<{ appProperties?: SheetAppProps }>(token, `https://www.googleapis.com/drive/v3/files/${id}?fields=appProperties`);
+  return r.appProperties ?? {};
+}
+export async function writeAppProps(token: string, id: string, props: SheetAppProps) {
+  await g(token, `https://www.googleapis.com/drive/v3/files/${id}?fields=id`, { method: "PATCH", body: JSON.stringify({ appProperties: props }) });
+}

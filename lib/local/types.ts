@@ -49,7 +49,7 @@ export type AutomationPrefs = {
 };
 /** Estado de la actualización nocturna, tal como lo entrega el script (sin secretos). */
 export type AutomationView = {
-  mode: "none" | "google" | "claude"; status: string; pausedReason: string | null; prefs: AutomationPrefs;
+  mode: "none" | "manual" | "google" | "claude"; status: string; pausedReason: string | null; prefs: AutomationPrefs;
   ai: { provider: string | null; model: string | null; keyHint: string | null; status: string; lastError: string | null; monthlyTokenLimit: number | null };
   nextRunAt: string | null; lastRun: { id: string; status: string; finishedAt: string; created: number; review: number; error: string | null; trigger: string } | null;
   lastSuccessAt: string | null; approved: InstructionRow | null; proposed: InstructionRow | null; configMatchesApproval: boolean;

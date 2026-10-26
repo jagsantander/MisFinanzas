@@ -41,7 +41,7 @@ export class FakeSheet {
 
 export type FakeMail = { id: string; from: string; subject: string; date: Date; body: string; labels?: string[] };
 
-export function createGoogle(opts: { email?: string; now?: () => Date } = {}) {
+export function createGoogle(opts: { email?: string; now?: () => Date; source?: string } = {}) {
   const sheets = new Map<string, FakeSheet>();
   const props = new Map<string, string>();
   const cache = new Map<string, string>();
@@ -72,7 +72,7 @@ export function createGoogle(opts: { email?: string; now?: () => Date } = {}) {
       }),
       getUi: () => { throw new Error("Sin interfaz (ejecutado desde el editor)"); },
     },
-    HtmlService: { createHtmlOutput: () => ({ setWidth() { return this; }, setHeight() { return this; } }) },
+    HtmlService: { createHtmlOutput: (html: string) => ({ html, setWidth() { return this; }, setHeight() { return this; }, setTitle() { return this; } }) },
     PropertiesService: { getScriptProperties: () => ({
       getProperty: (k: string) => props.get(k) ?? null,
       setProperty: (k: string, v: string) => { if (v.length > 9 * 1024) throw new Error(`Propiedad demasiado grande: ${k}`); props.set(k, v); },
@@ -105,11 +105,13 @@ export function createGoogle(opts: { email?: string; now?: () => Date } = {}) {
       },
     },
     GmailApp: {
-      search: (q: string) => {
+      search: (q: string, start = 0, max = 500) => {
         const after = Number(/after:(\d+)/.exec(q)?.[1] ?? 0) * 1000;
         const label = /label:(\S+)/.exec(q)?.[1];
         const slug = (n: string) => n.toLowerCase().replace(/[\s/]+/g, "-");
-        return mailbox.filter((m) => m.date.getTime() >= after && (!label || (m.labels ?? []).some((l) => slug(l) === label))).map((m) => ({ getMessages: () => [{
+        // Como Gmail: lo más nuevo primero, paginado con start/max.
+        return mailbox.filter((m) => m.date.getTime() >= after && (!label || (m.labels ?? []).some((l) => slug(l) === label)))
+          .sort((x, y) => y.date.getTime() - x.date.getTime()).slice(start, start + max).map((m) => ({ getMessages: () => [{
           getId: () => m.id, getFrom: () => m.from, getSubject: () => m.subject, getDate: () => m.date, getPlainBody: () => m.body,
         }] }));
       },
@@ -124,7 +126,7 @@ export function createGoogle(opts: { email?: string; now?: () => Date } = {}) {
     Session: { getEffectiveUser: () => ({ getEmail: () => opts.email ?? "ana.prueba@gmail.com" }), getScriptTimeZone: () => "America/Santiago" },
   };
   vm.createContext(ctx);
-  vm.runInContext(readFileSync("apps-script/Code.gs", "utf8"), ctx, { filename: "Code.gs" });
+  vm.runInContext(opts.source ?? readFileSync("apps-script/Code.gs", "utf8"), ctx, { filename: "Code.gs" });
   const g = ctx as Record<string, any>;
 
   /** Simula una llamada HTTP POST a la aplicación web. */

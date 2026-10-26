@@ -6,8 +6,10 @@ import {
   DEFAULT_SETTINGS, isScript, isSheets, SYNCED_TABLES, type AutomationView, type Category, type Connection, type ScriptConnection, type Settings,
   type SheetsConnection, type TableName, type Tables,
 } from "./types";
-import { currentToken, forgetToken, GoogleAuthError, requestToken } from "../google/auth";
+import { currentToken, forgetToken, GoogleAuthError, requestToken, SCRIPT_SCOPES } from "../google/auth";
 import { accountEmail, createSpreadsheet, findSpreadsheet, pushChanges, readAll, writeSettings } from "../google/sheets";
+import { installScript, savedScriptConnection, ScriptSetupError } from "../google/appsScript";
+import { getDeviceAi } from "../ai/receipt";
 
 /**
  * Estado de la app en el navegador (local primero):
@@ -25,10 +27,12 @@ export type State = {
   settingsPending: boolean;
   /** Conexión directa con Google sin permiso vigente: hay que tocar «Sincronizar con Google». */
   needsGoogle: boolean;
+  /** Script recién instalado por la app que espera el permiso de Gmail del usuario («Activar lectura de correos»). */
+  scriptSetup: ScriptConnection | null;
 };
 
 const emptyTables = (): Tables => ({ movements: [], categories: [], rules: [], budgets: [], overrides: [], alertStates: [], notifications: [], changes: [], runs: [] });
-let state: State = { loaded: false, tables: emptyTables(), settings: DEFAULT_SETTINGS, automation: null, connection: null, account: null, lastSyncAt: null, pending: [], syncing: false, syncError: null, settingsPending: false, needsGoogle: false };
+let state: State = { loaded: false, tables: emptyTables(), settings: DEFAULT_SETTINGS, automation: null, connection: null, account: null, lastSyncAt: null, pending: [], syncing: false, syncError: null, settingsPending: false, needsGoogle: false, scriptSetup: null };
 const listeners = new Set<() => void>();
 let pushTimer: ReturnType<typeof setTimeout> | null = null;
 let initPromise: Promise<void> | null = null;
@@ -39,8 +43,8 @@ function emit() { listeners.forEach((f) => f()); }
 function set(patch: Partial<State>) { state = { ...state, ...patch }; emit(); void persist(); }
 
 async function persist() {
-  const { tables, settings, automation, connection, account, lastSyncAt, pending, settingsPending } = state;
-  await idbSet("state", { tables, settings, automation, connection, account, lastSyncAt, pending, settingsPending });
+  const { tables, settings, automation, connection, account, lastSyncAt, pending, settingsPending, scriptSetup } = state;
+  await idbSet("state", { tables, settings, automation, connection, account, lastSyncAt, pending, settingsPending, scriptSetup });
 }
 
 export const nowIso = () => new Date().toISOString();
@@ -176,6 +180,11 @@ export async function connectGoogle() {
   const token = await requestToken({ prompt: "select_account" });
   const email = await accountEmail(token);
   const id = (await findSpreadsheet(token))?.id ?? (await createSpreadsheet(token));
+  // Si en otro dispositivo ya se activó la lectura de correos, este se conecta al mismo script, sin pasos extra.
+  const saved = await savedScriptConnection(token, id).catch(() => null);
+  if (saved) {
+    try { await callScript(saved, "ping", {}, 30_000); await connect(saved); return; } catch { /* sigue con la conexión directa */ }
+  }
   const remote = await readAll(token, id);
   const local = state.tables;
   const localHasData = local.movements.length + local.budgets.length + local.rules.length > 0;
@@ -222,7 +231,56 @@ export async function connect(conn: ScriptConnection) {
 
 export function disconnect() {
   if (isSheets(state.connection)) forgetToken();
-  set({ connection: null, pending: [], automation: null, account: null, syncError: null, settingsPending: false, needsGoogle: false });
+  set({ connection: null, pending: [], automation: null, account: null, syncError: null, settingsPending: false, needsGoogle: false, scriptSetup: null });
+}
+
+/**
+ * «Activar lectura de correos», paso 1 (desde un toque): MiSaldo instala el script en la planilla del usuario y lo
+ * implementa como aplicación web. Queda esperando el permiso de Gmail (paso 2), que el usuario da en Google.
+ */
+export async function startGmailSetup() {
+  const conn = state.connection;
+  if (!isSheets(conn)) throw new Error("Conecta primero tu planilla con «Continuar con Google»");
+  const token = currentToken(SCRIPT_SCOPES) ?? await requestToken({ scopes: SCRIPT_SCOPES, hint: conn.email });
+  try {
+    set({ scriptSetup: await installScript(token, conn.spreadsheetId) });
+  } catch (e) {
+    if (e instanceof ScriptSetupError && e.code === "expired") forgetToken();
+    throw e;
+  }
+}
+
+/**
+ * Paso 2, al volver de la pantalla de permisos de Google: si el script ya responde, la app pasa a usarlo
+ * (misma planilla, sin perder lo pendiente), deja la actualización en modo manual y reutiliza la clave de Gemini
+ * de este dispositivo, si la hay.
+ */
+export async function finishGmailSetup() {
+  const conn = state.scriptSetup;
+  if (!conn) return;
+  try {
+    await callScript(conn, "ping", {}, 30_000);
+  } catch (e) {
+    if (e instanceof ScriptError && e.code === "unauthorized") { set({ scriptSetup: null }); throw new ScriptError("El script de tu planilla no reconoció este dispositivo. Pulsa «Activar lectura de correos» otra vez.", "unauthorized"); }
+    throw new ScriptError("Aún no llega el permiso de Google. Pulsa «Dar permiso a Gmail» y termina con «Permitir».", "needs_auth");
+  }
+  await connect(conn);
+  set({ scriptSetup: null });
+  try {
+    if (state.automation?.mode === "none" || !state.automation) await script("setPrefs", { mode: "manual" });
+    const ai = await getDeviceAi();
+    if (ai && !state.automation?.hasAiKey) {
+      await script("setAiKey", { provider: "gemini", apiKey: ai.key });
+      await script("setAi", { model: ai.model });
+    }
+  } catch { /* se puede completar en «Correos del banco» */ }
+}
+
+export function cancelGmailSetup() { set({ scriptSetup: null }); }
+
+/** «Actualizar»: lee ahora los correos nuevos desde la actualización anterior. */
+export async function updateFromGmail() {
+  return script<{ run: { movementsCreated: number; movementsReview: number; messagesAnalyzed: number; messagesFailed: number; duplicatesSkipped: number; note: string | null; error: string | null; status: string } }>("runNow", {}, 360_000);
 }
 
 /** Borra todos los datos de este dispositivo (la planilla no se toca). */
@@ -247,6 +305,6 @@ export async function script<T = any>(action: string, payload: Record<string, un
   const res = await callScript<T & { automation?: AutomationView }>(state.connection, action, payload, timeoutMs);
   if (res.automation) set({ automation: res.automation });
   // Acciones que agregan datos en la planilla (p. ej. «Ejecutar ahora»): traerlos de inmediato.
-  if (['runNow', 'approve', 'resume'].includes(action)) void sync();
+  if (['runNow', 'approve', 'resume'].includes(action)) await sync();
   return res;
 }

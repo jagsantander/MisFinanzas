@@ -89,6 +89,7 @@ export function dayHeading(iso: string) {
 export const KIND_LABEL: Record<string, string> = { expense: "Gasto", income: "Ingreso", own_transfer: "Transferencia propia", card_payment: "Pago de tarjeta", refund: "Devolución", reversal: "Reverso" };
 export const AUTOMATION_STATUS: Record<string, { label: string; tone: string }> = {
   not_configured: { label: "Sin configurar", tone: "info" },
+  manual: { label: "Al pulsar «Actualizar»", tone: "ok" },
   pending_approval: { label: "Pendiente de validación", tone: "warn" },
   active: { label: "Activa", tone: "ok" },
   paused: { label: "Pausada", tone: "info" },

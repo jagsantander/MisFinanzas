@@ -28,7 +28,7 @@ for (const file of htmlFiles(OUT)) {
     "img-src 'self' data: blob:",
     "font-src 'self'",
     // Script de la planilla, inicio de sesión con Google, Drive y Sheets (planilla directa) y Gemini (boletas).
-    "connect-src 'self' https://script.google.com https://script.googleusercontent.com https://accounts.google.com https://www.googleapis.com https://sheets.googleapis.com https://generativelanguage.googleapis.com",
+    "connect-src 'self' https://script.google.com https://script.googleusercontent.com https://accounts.google.com https://www.googleapis.com https://sheets.googleapis.com https://script.googleapis.com https://generativelanguage.googleapis.com",
     "frame-src https://accounts.google.com",
     "worker-src 'self'",
     "manifest-src 'self'",
