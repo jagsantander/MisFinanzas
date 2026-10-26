@@ -12,6 +12,7 @@ import { Icon } from "@/components/Icon";
 import type { Cat } from "@/components/MovementItem";
 import { useMe } from "@/components/AppShell";
 import { formatMoney, minorToDecimalString, parseAmount } from "@/lib/money";
+import { parseNotice } from "@/lib/capture/parse";
 
 /** Achica la foto (lado mayor 1600 px, JPEG) para que viaje rápido a la planilla. Devuelve base64 sin encabezado. */
 async function shrinkPhoto(file: File): Promise<string> {
@@ -48,6 +49,17 @@ export default function NewMovement() {
   const scriptAi = Boolean(isScript(st.connection) && st.automation?.hasAiKey && st.automation.ai.model);
   const canScan = scriptAi || Boolean(deviceAi);
   const cur = me?.user.currency ?? "CLP";
+  const [pasted, setPasted] = useState("");
+  const [pasteMsg, setPasteMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  function applyPasted() {
+    const p = parseNotice(pasted, cur);
+    if (!p) { setPasteMsg({ ok: false, text: "No encontré un monto y un tipo de operación (compra, transferencia, abono…) en ese texto." }); return; }
+    const k = p.kind === "income" || p.kind === "refund" ? "income" : "expense";
+    setKind(k);
+    setF((prev) => ({ ...prev, amount: p.currency === cur ? minorToDecimalString(BigInt(p.amountMinor), cur) : prev.amount, description: p.description, merchant: p.merchant ?? prev.merchant, accountMask: p.accountMask ?? prev.accountMask, notes: pasted.slice(0, 300) }));
+    setCat({ c: null, s: null });
+    setPasteMsg({ ok: true, text: p.currency === cur ? "Listo: revisa los datos y guarda." : `El aviso está en ${p.currency}; completa el monto en ${cur}.` });
+  }
 
   async function readReceipt(file: File | undefined) {
     if (!file) return;
@@ -98,6 +110,14 @@ export default function NewMovement() {
         {scan.done && !scan.warnings.length && <Notice tone="ok"><p className="small">Datos leídos de la boleta. Revísalos y guarda.</p></Notice>}
         {scan.error && <Notice tone="danger"><p className="small">{scan.error}</p></Notice>}
         {scan.warnings.length > 0 && <Notice tone="warn"><p className="small">Datos leídos de la boleta. Revisa: {scan.warnings.join(" · ")}</p></Notice>}
+        <details>
+          <summary>Pegar un aviso del banco</summary>
+          <div className="stack" style={{ marginTop: 8 }}>
+            <textarea className="input" rows={3} value={pasted} onChange={(e) => setPasted(e.target.value)} placeholder="Ej.: Compra por $12.990 en LIDER con tu tarjeta terminada en 1234" aria-label="Texto del aviso" />
+            <button type="button" className="btn sm" disabled={!pasted.trim()} onClick={applyPasted}>Completar con este texto</button>
+            {pasteMsg && <Notice tone={pasteMsg.ok ? "ok" : "warn"}><p className="small">{pasteMsg.text}</p></Notice>}
+          </div>
+        </details>
       </section>
       <form onSubmit={save} style={{ marginTop: 12 }}>
         <div className="segmented" role="radiogroup" aria-label="Tipo" style={{ marginBottom: 16 }}>

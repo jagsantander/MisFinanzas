@@ -24,6 +24,7 @@ export const MOV_HEADERS = ["Id", "Fecha", "Hora", "Tipo", "Estado", "Monto", "M
   "Cuenta", "Banco", "Origen", "Excluido", "Notas", "Id operación", "Id correo", "Actualizado", "Eliminado", "Datos"];
 
 const KIND_LABEL: Record<string, string> = { expense: "Gasto", income: "Ingreso", own_transfer: "Transferencia propia", card_payment: "Pago de tarjeta", refund: "Devolución", reversal: "Reverso" };
+const SOURCE_LABEL: Record<string, string> = { email: "Correo", notification: "Notificación", shared: "Compartido", shortcut: "Atajo", statement: "Cartola" };
 const STATUS_LABEL: Record<string, string> = { confirmed: "Confirmado", review: "Por revisar", pending: "Pendiente" };
 
 export type Cell = string | number;
@@ -38,7 +39,7 @@ export function movementRow(m: Movement, cats: Record<string, string>, now: stri
   const signed = m.kind === "expense" ? -amount : amount;
   return [m.id, m.occurredOn, m.occurredTime || "", KIND_LABEL[m.kind] || m.kind, STATUS_LABEL[m.status] || m.status,
     signed, m.currency, m.description || "", m.merchant || m.counterparty || "", (m.categoryId && cats[m.categoryId]) || "", (m.subcategoryId && cats[m.subcategoryId]) || "",
-    m.accountMask || "", m.bank || "", m.source === "email" ? "Correo" : "Manual", m.excluded ? "sí" : "", m.notes || "",
+    m.accountMask || "", m.bank || "", SOURCE_LABEL[m.source] ?? "Manual", m.excluded ? "sí" : "", m.notes || "",
     m.operationRef || "", m.sourceMessageId || "", m.updatedAt || now, m.deletedAt ? "sí" : "", JSON.stringify(m)];
 }
 

@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { dayHeading, KIND_LABEL, movementTone, useApi } from "@/lib/client";
+import { dayHeading, KIND_LABEL, movementTone, SOURCE_LABEL, useApi } from "@/lib/client";
 import { Icon } from "@/components/Icon";
 import { Empty, ErrorState, Loading, Money, Sheet } from "@/components/ui";
 import { MovementItem, type Cat, type Mv } from "@/components/MovementItem";
@@ -56,7 +56,7 @@ function MovementsInner() {
 
   return (
     <main className="page wide">
-      <div className="topbar"><div className="brand"><span>Mis<b>Finanzas</b></span></div>
+      <div className="topbar"><div className="brand"><span>Mi<b>Saldo</b></span></div>
         <Link href="/categorias/reglas" className="btn ghost sm" aria-label="Reglas de clasificación"><Icon name="gear" size={24} /></Link></div>
       <div className="row between" style={{ flexWrap: "wrap" }}>
         <h1 className="title">Movimientos</h1>
@@ -104,7 +104,7 @@ function MovementsInner() {
                         <td>{catName(m.categoryId)}{m.subcategoryId ? ` › ${catName(m.subcategoryId)}` : ""}</td>
                         <td>{KIND_LABEL[m.kind]}</td>
                         <td>{m.accountMask ?? ""}</td>
-                        <td>{m.source === "email" ? "Correo" : "Manual"}</td>
+                        <td>{SOURCE_LABEL[m.source] ?? "Manual"}</td>
                         <td>{m.status === "review" ? <span className="badge warn">Por revisar</span> : m.status === "pending" ? <span className="badge info">Pendiente</span> : m.excluded ? <span className="badge">Excluido</span> : <span className="badge ok">OK</span>}</td>
                         <td className="right"><Money minor={m.amountMinor} currency={m.currency} sign={t.sign} className={t.cls} /></td>
                       </tr>
@@ -163,7 +163,7 @@ function Filters({ initial, accounts, cats, onApply }: { initial: URLSearchParam
       <div className="grid2">
         <div className="field"><label htmlFor="fsrc">Origen</label>
           <select id="fsrc" className="input" value={f.source ?? ""} onChange={(e) => upd("source", e.target.value)}>
-            <option value="">Todos</option><option value="manual">Manual</option><option value="email">Correo</option>
+            <option value="">Todos</option>{Object.entries(SOURCE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select></div>
         <div className="field"><label htmlFor="frev">Revisión</label>
           <select id="frev" className="input" value={f.revision ?? ""} onChange={(e) => upd("revision", e.target.value)}>

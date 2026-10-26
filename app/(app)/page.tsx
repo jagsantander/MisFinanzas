@@ -33,7 +33,7 @@ export default function Home() {
   return (
     <main className="page">
       <div className="topbar">
-        <div className="brand"><img src={withBase("/icons/icon-192.png")} alt="" width={40} height={40} style={{ borderRadius: 11 }} /><span>Mis<b>Finanzas</b></span></div>
+        <div className="brand"><img src={withBase("/icons/icon-192.png")} alt="" width={40} height={40} style={{ borderRadius: 11 }} /><span>Mi<b>Saldo</b></span></div>
         <Link href="/notificaciones" className="btn ghost sm" aria-label={`Notificaciones${me?.unread ? `, ${me.unread} sin leer` : ""}`} style={{ position: "relative" }}>
           <Icon name="bell" size={26} />
           {me?.unread ? <span style={{ position: "absolute", top: 6, right: 10, width: 10, height: 10, borderRadius: 5, background: "var(--expense-icon)" }} /> : null}

@@ -86,6 +86,8 @@ export function dayHeading(iso: string) {
   return d.getFullYear() === today.getFullYear() ? label : `${label} de ${d.getFullYear()}`;
 }
 
+/** Origen de un movimiento, como se muestra en la app y en la planilla. */
+export const SOURCE_LABEL: Record<string, string> = { manual: "Manual", email: "Correo", notification: "Notificación", shared: "Compartido", shortcut: "Atajo", statement: "Cartola" };
 export const KIND_LABEL: Record<string, string> = { expense: "Gasto", income: "Ingreso", own_transfer: "Transferencia propia", card_payment: "Pago de tarjeta", refund: "Devolución", reversal: "Reverso" };
 export const AUTOMATION_STATUS: Record<string, { label: string; tone: string }> = {
   not_configured: { label: "Sin configurar", tone: "info" },

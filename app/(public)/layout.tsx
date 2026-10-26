@@ -6,7 +6,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
       <main className="page" style={{ paddingTop: 32 }}>
         <div className="brand" style={{ marginBottom: 24 }}>
           <img src={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/icons/icon-192.png`} alt="" width={44} height={44} style={{ borderRadius: 12 }} />
-          <span>Mis<b>Finanzas</b></span>
+          <span>Mi<b>Saldo</b></span>
         </div>
         {children}
       </main>

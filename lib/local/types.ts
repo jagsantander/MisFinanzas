@@ -8,7 +8,7 @@ export type Movement = {
   operationRef?: string | null; categoryId: string | null; subcategoryId: string | null;
   categorySource: "manual" | "rule" | "ai" | "none"; ruleId?: string | null; suggestedCategory?: string | null;
   notes: string | null; reviewReason?: string | null; reviewedAt?: string | null; excluded: boolean;
-  source: "manual" | "email"; sourceMessageId?: string | null; sourceIndex?: number | null; senderDomain?: string | null;
+  source: "manual" | "email" | "notification" | "shared" | "shortcut" | "statement"; sourceMessageId?: string | null; sourceIndex?: number | null; senderDomain?: string | null;
   confidence?: number | null; runId?: string | null; relatedMovementId?: string | null; possibleDuplicateOf?: string | null;
   lockedFields: string[]; deletedAt: string | null; createdAt: string; updatedAt: string;
 };

@@ -16,7 +16,7 @@ const API = "https://generativelanguage.googleapis.com/v1beta";
 export const getDeviceAi = () => idbGet<DeviceAi>(IDB_KEY);
 export const clearDeviceAi = () => idbSet(IDB_KEY, null);
 
-async function gemini<T = any>(key: string, path: string, body?: unknown): Promise<T> {
+export async function gemini<T = any>(key: string, path: string, body?: unknown): Promise<T> {
   let res: Response;
   try {
     res = await fetch(`${API}/${path}`, { method: body ? "POST" : "GET", headers: { "x-goog-api-key": key, ...(body ? { "Content-Type": "application/json" } : {}) }, body: body ? JSON.stringify(body) : undefined });

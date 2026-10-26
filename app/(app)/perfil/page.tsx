@@ -28,7 +28,7 @@ export default function Profile() {
   const a = st.automation;
   return (
     <main className="page">
-      <div className="brand"><span>Mis<b>Finanzas</b></span></div>
+      <div className="brand"><span>Mi<b>Saldo</b></span></div>
       <h1 className="title" style={{ marginTop: 12 }}>Mi perfil</h1>
       <section className="card pad row" style={{ marginTop: 12 }}>
         <span className="ico" style={{ width: 64, height: 64, background: "var(--primary-soft)", color: "var(--primary-strong)", fontWeight: 800, fontSize: 22 }} aria-hidden>{initials}</span>
@@ -48,7 +48,8 @@ export default function Profile() {
       <h2 className="section">Datos y automatización</h2>
       <div className="list">
         <Row href="/conexiones" icon="table" color="#3b82f6" title="Tu planilla" value={st.connection ? (st.syncError ? "Con error" : "Conectada") : "Sin conectar"} sub={st.lastSyncAt ? `Sincronizada ${fmtDateTime(st.lastSyncAt)}` : undefined} />
-        <Row href="/automatizacion" icon="moon" color="#7c5cd6" title="Actualización nocturna" value={a ? AUTOMATION_STATUS[a.status]?.label : "—"} sub={a?.mode === "google" ? `Google · ${a.ai.provider ?? "sin IA"}` : a?.mode === "claude" ? "Tarea de Claude" : undefined} />
+        <Row href="/automatico" icon="refresh" color="#0f7d70" title="Registro automático" sub="Notificaciones del banco, Atajos de iPhone y cartola" />
+        <Row href="/automatizacion" icon="moon" color="#7c5cd6" title="Lectura de Gmail (avanzado)" value={a ? AUTOMATION_STATUS[a.status]?.label : "—"} sub={a?.mode === "google" ? `Google · ${a.ai.provider ?? "sin IA"}` : a?.mode === "claude" ? "Tarea de Claude" : undefined} />
         <Row href="/perfil/datos" icon="download" color="#3b82f6" title="Exportar y copia de seguridad" sub="Excel, CSV o copia completa" />
         <Row href="/categorias/reglas" icon="filter" color="#64708a" title="Reglas de clasificación" />
       </div>

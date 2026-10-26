@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { CatIcon, Money } from "./ui";
 import { Icon } from "./Icon";
-import { KIND_LABEL, movementTone } from "@/lib/client";
+import { KIND_LABEL, movementTone, SOURCE_LABEL } from "@/lib/client";
 
 export type Mv = {
   id: string; kind: string; status: string; amountMinor: string; currency: string; occurredOn: string; occurredTime: string | null;
@@ -26,6 +26,7 @@ export function MovementItem({ m, cats }: { m: Mv; cats: Cat[] }) {
         <div className="s ellipsis">
           {subtitle}
           {m.source === "email" && <> · <Icon name="mail" size={12} /> </>}
+          {m.source !== "email" && m.source !== "manual" && <> · {SOURCE_LABEL[m.source]}</>}
         </div>
         <div className="row" style={{ gap: 6, marginTop: 4, flexWrap: "wrap" }}>
           {m.status === "review" && <span className="badge warn">Por revisar</span>}

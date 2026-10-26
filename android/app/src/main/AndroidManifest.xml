@@ -27,8 +27,9 @@
         <!-- Verificación de dominio: el sitio debe declarar esta app en assetlinks.json -->
         <meta-data android:name="asset_statements" android:resource="@string/asset_statements" />
 
+        <!-- Lanzador propio: igual al de androidbrowserhelper, pero entrega a la web los avisos capturados. -->
         <activity
-            android:name="com.google.androidbrowserhelper.trusted.LauncherActivity"
+            android:name=".MiSaldoLauncherActivity"
             android:exported="true"
             android:label="@string/app_name">
             <meta-data android:name="android.support.customtabs.trusted.DEFAULT_URL" android:value="@string/launch_url" />
@@ -55,6 +56,43 @@
         </activity>
 
         <activity android:name="com.google.androidbrowserhelper.trusted.FocusActivity" />
+
+        <!-- «Compartir → MiSaldo» con el texto de un correo o comprobante. -->
+        <activity
+            android:name=".ShareReceiverActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
+
+        <!-- La web abre el permiso de notificaciones con intent://permiso-notificaciones#Intent;scheme=misaldo;… -->
+        <activity
+            android:name=".NotificationAccessActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="misaldo" android:host="permiso-notificaciones" />
+            </intent-filter>
+        </activity>
+
+        <!-- Lee las notificaciones de pagos del banco (el usuario lo activa en Ajustes → Acceso a notificaciones). -->
+        <service
+            android:name=".BankNotificationListener"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
         <!-- «Gestionar datos» del sitio. LauncherActivity la habilita al abrir: si no está declarada, la app se cierra. -->
         <activity
             android:name="com.google.androidbrowserhelper.trusted.ManageDataLauncherActivity"

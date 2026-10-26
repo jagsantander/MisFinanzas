@@ -12,7 +12,7 @@ export function exportRows(rows: Movement[], catName: (id: string | null | undef
     // Signo contable: gastos negativos; el resto positivo.
     (m.kind === "expense" ? "-" : "") + minorToDecimalString(BigInt(m.amountMinor), m.currency), m.currency,
     m.description, m.merchant ?? m.counterparty ?? "", m.bank ?? "", m.accountMask ?? "", catName(m.categoryId), catName(m.subcategoryId),
-    m.source === "email" ? "Correo" : "Manual", { manual: "Manual", rule: "Regla", ai: "IA", none: "" }[m.categorySource] ?? "",
+    ({ email: "Correo", notification: "Notificación", shared: "Compartido", shortcut: "Atajo", statement: "Cartola" } as Record<string, string>)[m.source] ?? "Manual", { manual: "Manual", rule: "Regla", ai: "IA", none: "" }[m.categorySource] ?? "",
     m.excluded ? "Sí" : "No", m.notes ?? "", m.operationRef ?? "",
   ]);
 }

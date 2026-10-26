@@ -78,15 +78,21 @@ Publicada en: **https://jagsantander.github.io/MisFinanzas/**
 2. **Conecta tu planilla con un toque:** **Continuar con Google**. La app crea la planilla «MiSaldo» en tu Drive (o la encuentra, si ya la creaste en otro dispositivo) y la sincroniza directo con la API de Sheets.
    - El permiso de Google en el navegador dura una hora (sin servidor no hay renovación automática). Cuando vence, los cambios quedan en el dispositivo y se suben al tocar **Sincronizar con Google**; si la sesión de Google sigue abierta, no pide nada más.
    - **Fotos de boletas:** basta una clave gratuita de Gemini, guardada solo en el dispositivo (Actualización nocturna → «Tu IA para leer boletas»). Funciona incluso sin planilla.
-3. **Lectura nocturna de Gmail (opcional).** Google exige una auditoría de seguridad pagada para que una app lea Gmail, así que esto sigue requiriendo el script en tu planilla (con tu propio permiso, de solo lectura):
+3. **Registro automático, sin permiso de Gmail** (Perfil → Registro automático):
+   - **Android:** la app (APK) lee las notificaciones de pagos del banco o billetera (monto + «compra», «transferencia», «abono»…), ignora apps de mensajería y registra el movimiento. El permiso se da una vez en Ajustes → Acceso a notificaciones (botón en la app). También **Compartir → MiSaldo** desde Gmail u otra app.
+   - **iPhone:** automatización de Atajos «Cartera» (Apple Pay) que abre `…/movimientos/#atajo&monto=…&comercio=…`.
+   - **Cartola:** subir el Excel, CSV o PDF del banco; la IA (clave de Gemini del dispositivo) la lee, se revisa la lista y se importa sin duplicar.
+   - **Pegar aviso** en «Agregar movimiento» y **foto de boleta**.
+   - Todo se interpreta en el dispositivo: los avisos viajan de la app Android a la web en el fragmento `#ms=…`, que el navegador no envía a ningún servidor. Cada aviso tiene un id estable (no se repite aunque se haya eliminado) y lo parecido a un movimiento existente queda «Por revisar».
+4. **Lectura nocturna de Gmail (opcional, avanzado).** Google exige una auditoría de seguridad pagada para que una app lea Gmail, así que esto sigue requiriendo el script en tu planilla (con tu propio permiso, de solo lectura):
    - Si te conectaste con Google: Actualización nocturna explica cómo agregar el script a tu misma planilla.
    - O desde cero: **Crear mi planilla con script** → **Hacer una copia** → menú **MiSaldo → Conectar con la app** → implementar como «Aplicación web» (solo la primera vez) → **Abrir MiSaldo y conectar**. En otro dispositivo, pega el **código de conexión** (`MS1.…`).
-4. Con el script, elige la modalidad nocturna y autoriza Gmail:
+5. Con el script, elige la modalidad nocturna y autoriza Gmail:
    - **Google (gratis):** el permiso de Gmail (solo lectura) se otorga al ejecutar `instalar`; la app lo comprueba con «Probar acceso a Gmail». La IA puede ser una clave gratuita de Gemini.
    - **Claude:** requiere Claude Pro o superior (la cuenta gratuita no permite tareas programadas). Gmail se autoriza en el conector de claude.ai.
-5. En «Qué correos leer y cuándo» elige los bancos, agrega remitentes propios, decide si leer solo esos remitentes y, opcionalmente, limita a una etiqueta de Gmail.
-6. Revisa la instrucción y pulsa **Validar y activar**.
-7. En la modalidad Claude, crea la tarea en claude.ai con la instrucción aprobada:
+6. En «Qué correos leer y cuándo» elige los bancos, agrega remitentes propios, decide si leer solo esos remitentes y, opcionalmente, limita a una etiqueta de Gmail.
+7. Revisa la instrucción y pulsa **Validar y activar**.
+8. En la modalidad Claude, crea la tarea en claude.ai con la instrucción aprobada:
    - Gmail como único conector.
    - Las variables de entorno `MISFINANZAS_URL` y `MISFINANZAS_IMPORT_TOKEN`.
    - Acceso de red a `script.google.com` y `script.googleusercontent.com`.
@@ -133,7 +139,7 @@ Para probar `out/` localmente en http://localhost:4000/MisFinanzas/:
 node scripts/serve-pages.mjs
 ```
 
-**Pruebas (39)**
+**Pruebas (53)**
 
 - **Del script** (`tests/apps-script/`): ejecutan el `Code.gs` real sobre un simulador de los servicios de Google (hojas, propiedades, disparadores, Gmail, UrlFetch y correo). Cubren:
   - instalación y tokens;
@@ -191,7 +197,7 @@ La publicación es automática: al subir cambios a `main`, el workflow `.github/
 `android/` contiene una Trusted Web Activity que abre la app publicada. Para compilarla:
 
 ```bash
-./android/build-apk.sh https://jagsantander.github.io/MisFinanzas/ 1.3.1 6
+./android/build-apk.sh https://jagsantander.github.io/MisFinanzas/ 1.4.0 7
 ```
 
 El script también la copia a `public/descargas/MiSaldo.apk`: al publicar, queda para descargar en **https://jagsantander.github.io/MisFinanzas/descargas/MiSaldo.apk**. Sube `versionName` y `versionCode` en cada versión para que se instale encima de la anterior.

@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { api, ApiError, fmtDate, fmtDateTime, KIND_LABEL, movementTone, useApi } from "@/lib/client";
+import { api, ApiError, fmtDate, fmtDateTime, KIND_LABEL, movementTone, useApi, SOURCE_LABEL } from "@/lib/client";
 import { CategoryPicker } from "@/components/CategoryPicker";
 import { ConfirmSheet, ErrorState, Loading, Money, Notice, Sheet, useToast } from "@/components/ui";
 import { Icon } from "@/components/Icon";
@@ -18,7 +18,7 @@ type Detail = {
   related: Mv | null;
   duplicateOf: Mv | null;
 };
-const SOURCE_LABEL: Record<string, string> = { manual: "Corrección manual", rule: "Regla", ai: "Propuesta de IA", none: "Sin clasificar" };
+const CATEGORY_SOURCE_LABEL: Record<string, string> = { manual: "Corrección manual", rule: "Regla", ai: "Propuesta de IA", none: "Sin clasificar" };
 const ACTOR: Record<string, string> = { user: "Tú", sync: "Sincronización", rule: "Regla", system: "Sistema" };
 const ACTION: Record<string, string> = { created: "Creado", imported: "Importado desde correo", edit: "Editado", reviewed: "Marcado como revisado", deleted: "Eliminado", restored: "Restaurado", merged_into: "Fusionado en otro movimiento", merged_from: "Recibió un duplicado", category_reassigned: "Categoría reasignada" };
 
@@ -67,7 +67,7 @@ function MovementDetail() {
         <div style={{ fontSize: 34, margin: "6px 0" }}><Money minor={m.amountMinor} currency={m.currency} sign={tone.sign} className={tone.cls} /></div>
         <div style={{ fontWeight: 700 }}>{m.merchant || m.description}</div>
         <div className="row" style={{ justifyContent: "center", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
-          {m.source === "email" ? <span className="badge info"><Icon name="mail" size={12} /> Importado</span> : <span className="badge">Manual</span>}
+          {m.source === "email" ? <span className="badge info"><Icon name="mail" size={12} /> Importado</span> : m.source === "manual" ? <span className="badge">Manual</span> : <span className="badge info">{SOURCE_LABEL[m.source]}</span>}
           {m.status === "review" && <span className="badge warn">Por revisar</span>}
           {m.status === "pending" && <span className="badge info">Pendiente (no suma)</span>}
           {m.excluded && <span className="badge">Excluido de informes</span>}
@@ -95,7 +95,7 @@ function MovementDetail() {
           {cats.data && (m.kind === "expense" || m.kind === "income" || m.kind === "refund" || m.kind === "reversal") ? (
             <>
               <CategoryPicker cats={cats.data.categories} kind={catKind} categoryId={cat.c} subcategoryId={cat.s} onChange={(c, s) => setCat({ c, s })} />
-              <div className="small muted" style={{ marginBottom: 10 }}>Origen: {SOURCE_LABEL[m.categorySource]}{data!.rule ? ` (“${data!.rule.name}”)` : ""}{m.suggestedCategory && m.categorySource !== "ai" ? ` · La IA sugirió: ${m.suggestedCategory}` : ""}</div>
+              <div className="small muted" style={{ marginBottom: 10 }}>Origen: {CATEGORY_SOURCE_LABEL[m.categorySource]}{data!.rule ? ` (“${data!.rule.name}”)` : ""}{m.suggestedCategory && m.categorySource !== "ai" ? ` · La IA sugirió: ${m.suggestedCategory}` : ""}</div>
               <button className="btn primary block" disabled={cat.c === m.categoryId && cat.s === m.subcategoryId} onClick={() => setReclass(true)}>Cambiar categoría…</button>
             </>
           ) : <p className="small muted">{KIND_LABEL[m.kind]}: no suma en ingresos, gastos ni presupuestos.</p>}
@@ -118,7 +118,7 @@ function MovementDetail() {
           <div className="field"><label htmlFor="nt">Notas</label><textarea id="nt" className="input" value={edit.notes ?? ""} onChange={(e) => setEdit({ ...edit, notes: e.target.value })} /></div>
           {err && <Notice tone="danger"><p>{err}</p></Notice>}
           <button className="btn primary block" disabled={!dirty}>Guardar cambios</button>
-          {m.source === "email" && <p className="small muted" style={{ marginTop: 8 }}>Tus correcciones quedan protegidas: las sincronizaciones no las sobrescriben.</p>}
+          {m.source !== "manual" && <p className="small muted" style={{ marginTop: 8 }}>Tus correcciones quedan protegidas: las sincronizaciones no las sobrescriben.</p>}
         </form>
 
         <div className="stack" style={{ marginTop: 12 }}>
@@ -129,7 +129,8 @@ function MovementDetail() {
 
       <h2 className="section">Origen</h2>
       <div className="card pad small stack" style={{ gap: 6 }}>
-        <div>{m.source === "email" ? <>Importado desde {data!.connection ? `${data!.connection.provider === "gmail" ? "Gmail" : "Outlook"} (${data!.connection.account})` : "un correo"}{m.receivedAt ? ` · recibido ${fmtDateTime(m.receivedAt)}` : ""}</> : "Registrado manualmente"}</div>
+        <div>{m.source === "email" ? <>Importado desde {data!.connection ? `${data!.connection.provider === "gmail" ? "Gmail" : "Outlook"} (${data!.connection.account})` : "un correo"}{m.receivedAt ? ` · recibido ${fmtDateTime(m.receivedAt)}` : ""}</> : m.source === "manual" ? "Registrado manualmente" : ({ notification: "Leído de una notificación del teléfono", shared: "Compartido o pegado en MiSaldo", shortcut: "Enviado por un Atajo de iPhone", statement: "Importado de una cartola" } as Record<string, string>)[m.source]}{m.source === "notification" && m.senderDomain ? ` (${m.senderDomain})` : ""}</div>
+        {m.source !== "manual" && m.source !== "email" && m.notes && <div className="muted">Texto original: «{m.notes}»</div>}
         {m.bank && <div>Banco: {m.bank}</div>}
         {m.operationRef && <div>Id de operación: {m.operationRef}</div>}
         {m.confidence != null && <div>Confianza de la extracción: {Math.round(m.confidence * 100)}%</div>}

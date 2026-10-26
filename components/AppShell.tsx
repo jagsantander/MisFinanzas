@@ -3,11 +3,12 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useStore, withBase } from "@/lib/client";
-import { initStore, resumeGoogle } from "@/lib/local/store";
+import { getState, initStore, resumeGoogle } from "@/lib/local/store";
 import { captureConnectionHash } from "@/lib/local/script";
+import { captureIncomingHash, importPendingCaptures } from "@/lib/capture/incoming";
 import type { Settings } from "@/lib/local/types";
 import { Icon } from "./Icon";
-import { Loading, Notice, ToastProvider } from "./ui";
+import { Loading, Notice, ToastProvider, useToast } from "./ui";
 import { lockConfigured, lockMinutes, unlockWithDevice } from "@/lib/local/lock";
 
 export type Me = {
@@ -43,7 +44,17 @@ export function AppShell({ children }: { children: ReactNode }) {
   const st = useStore();
   const [locked, setLocked] = useState<boolean | null>(null);
 
-  useEffect(() => { captureConnectionHash(); void initStore(); }, []);
+  useEffect(() => {
+    // También al cambiar solo el # (un Atajo o el botón de la planilla con MiSaldo ya abierta en esa pestaña).
+    const onHash = () => {
+      captureConnectionHash();
+      void captureIncomingHash().then((found) => { if (found) window.dispatchEvent(new Event("mf:captured")); });
+    };
+    onHash();
+    void initStore();
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
   useEffect(() => { applyTheme(localTheme()); }, []);
   useEffect(() => {
     if (st.loaded && !st.settings.onboardingDone && !path.startsWith("/bienvenida")) router.replace("/bienvenida");
@@ -84,6 +95,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="app" style={hideNav ? { paddingLeft: 0, paddingBottom: 24 } : undefined}>
           <div id="contenido">
             {locked ? <LockScreen onUnlocked={() => setLocked(false)} /> : <>{!hideNav && <SyncBanner />}{children}</>}
+            <CaptureImporter />
           </div>
         </div>
         {!hideNav && !locked && (
@@ -100,6 +112,27 @@ export function AppShell({ children }: { children: ReactNode }) {
       </ToastProvider>
     </MeCtx.Provider>
   );
+}
+
+/** Importa los avisos que llegaron de la app Android o de un Atajo de iPhone, y cuenta qué se agregó. */
+function CaptureImporter() {
+  const st = useStore();
+  const toast = useToast();
+  useEffect(() => {
+    let busy = false;
+    const run = async () => {
+      if (busy) return;
+      busy = true;
+      try {
+        const r = await importPendingCaptures(getState().settings.currency);
+        if (r && r.created + r.review > 0) toast({ text: `${r.created + r.review} movimiento${r.created + r.review === 1 ? "" : "s"} agregado${r.created + r.review === 1 ? "" : "s"} automáticamente${r.review ? ` (${r.review} por revisar)` : ""}` });
+      } finally { busy = false; }
+    };
+    void run();
+    window.addEventListener("mf:captured", run);
+    return () => window.removeEventListener("mf:captured", run);
+  }, [st.loaded]); // eslint-disable-line react-hooks/exhaustive-deps
+  return null;
 }
 
 /** Aviso discreto cuando los datos no están respaldados en la planilla o la sincronización falla. */

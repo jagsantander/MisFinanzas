@@ -517,7 +517,7 @@ function movementRow_(m, cats) {
   return [m.id, m.occurredOn, m.occurredTime || '', KIND_LABEL[m.kind] || m.kind,
     { confirmed: 'Confirmado', review: 'Por revisar', pending: 'Pendiente' }[m.status] || m.status,
     signed, m.currency, m.description || '', m.merchant || m.counterparty || '', cats[m.categoryId] || '', cats[m.subcategoryId] || '',
-    m.accountMask || '', m.bank || '', m.source === 'email' ? 'Correo' : 'Manual', m.excluded ? 'sí' : '', m.notes || '',
+    m.accountMask || '', m.bank || '', ({ email: 'Correo', notification: 'Notificación', shared: 'Compartido', shortcut: 'Atajo', statement: 'Cartola' })[m.source] || 'Manual', m.excluded ? 'sí' : '', m.notes || '',
     m.operationRef || '', m.sourceMessageId || '', m.updatedAt || nowIso_(), m.deletedAt ? 'sí' : '', JSON.stringify(m)];
 }
 

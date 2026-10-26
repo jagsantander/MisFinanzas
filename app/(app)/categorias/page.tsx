@@ -34,7 +34,7 @@ function CategoriesInner() {
 
   return (
     <main className="page">
-      <div className="topbar"><div className="brand"><span>Mis<b>Finanzas</b></span></div><Link href="/notificaciones" className="btn ghost sm" aria-label="Notificaciones"><Icon name="bell" size={24} /></Link></div>
+      <div className="topbar"><div className="brand"><span>Mi<b>Saldo</b></span></div><Link href="/notificaciones" className="btn ghost sm" aria-label="Notificaciones"><Icon name="bell" size={24} /></Link></div>
       <h1 className="title">Categorías</h1>
       <p className="subtitle">Organiza cada peso</p>
       <div className="row" style={{ flexWrap: "wrap", gap: 10 }}>
