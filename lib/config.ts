@@ -9,4 +9,4 @@ export const SHEET_TEMPLATE_COPY_URL = "https://docs.google.com/spreadsheets/d/1
  * https://jagsantander.github.io autorizado. Es público (no es un secreto). Mientras esté vacío, no se
  * muestra «Continuar con Google».
  */
-export const GOOGLE_CLIENT_ID = "";
+export const GOOGLE_CLIENT_ID = "766791000617-98qfdep0jdsmkpnci1rlh9ss8v1uk1q4.apps.googleusercontent.com";
