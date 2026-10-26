@@ -15,7 +15,7 @@ const QA: [string, string][] = [
   ["¿Los presupuestos bloquean compras?", "No. Son informativos y se calculan con los movimientos registrados; las alertas no son bancarias en tiempo real."],
   ["Corregí una categoría, ¿la sincronización la cambiará?", "No. La actualización nocturna solo agrega movimientos nuevos; nunca sobrescribe tus correcciones."],
   ["Eliminé un movimiento importado, ¿volverá?", "No. Queda registrado como eliminado y no se vuelve a importar. Puedes restaurarlo desde «Ver eliminados»."],
-  ["¿Cómo la instalo?", "En Android/Chrome usa «Instalar app» o la APK. En iPhone abre el menú Compartir de Safari y elige «Agregar a pantalla de inicio». En computador, el ícono de instalar en la barra de direcciones de Chrome o Edge."],
+  ["¿Cómo la instalo?", "En Android/Chrome usa «Instalar app» o descarga la APK en jagsantander.github.io/MisFinanzas/descargas/MiSaldo.apk (Android pedirá permitir instalar apps de esa fuente). En iPhone abre el menú Compartir de Safari y elige «Agregar a pantalla de inicio». En computador, el ícono de instalar en la barra de direcciones de Chrome o Edge."],
 ];
 export default function Help() {
   return (

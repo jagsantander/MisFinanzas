@@ -27,6 +27,9 @@ gradle --no-daemon -q assembleRelease -PtwaUrl="$URL" -PversionName="$VERSION_NA
 mkdir -p ../dist
 OUT="../dist/MisFinanzas-${VERSION_NAME}.apk"
 cp app/build/outputs/apk/release/app-release.apk "$OUT"
+# Copia con nombre fijo para la descarga pública (se publica junto a la app en /descargas/MiSaldo.apk).
+mkdir -p ../public/descargas
+cp "$OUT" ../public/descargas/MiSaldo.apk
 apksigner verify --print-certs "$OUT" | grep -i "SHA-256" | head -1
 SHA=$(keytool -list -v -keystore keystore/misfinanzas-release.jks -alias misfinanzas -storepass "$(grep storePassword keystore.properties | cut -d= -f2)" | grep "SHA256:" | awk '{print $2}')
 echo
