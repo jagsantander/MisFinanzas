@@ -2,7 +2,7 @@
  * - Permite instalar la app y abrirla sin conexión (los datos están en el dispositivo).
  * - Guarda en caché solo archivos de la app; NUNCA respuestas de la planilla (datos financieros).
  * - No ejecuta tareas programadas: la actualización nocturna corre en tu cuenta de Google o de Claude. */
-const CACHE = "mf-app-v2";
+const CACHE = "mf-app-v3"; // súbela cuando cambien íconos u otros archivos que se guardan en caché
 const BASE = new URL(self.registration.scope).pathname; // p. ej. /MisFinanzas/
 
 self.addEventListener("install", (e) => {
