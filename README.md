@@ -191,7 +191,7 @@ La publicación es automática: al subir cambios a `main`, el workflow `.github/
 `android/` contiene una Trusted Web Activity que abre la app publicada. Para compilarla:
 
 ```bash
-./android/build-apk.sh https://jagsantander.github.io/MisFinanzas/ 1.3.0 5
+./android/build-apk.sh https://jagsantander.github.io/MisFinanzas/ 1.3.1 6
 ```
 
 El script también la copia a `public/descargas/MiSaldo.apk`: al publicar, queda para descargar en **https://jagsantander.github.io/MisFinanzas/descargas/MiSaldo.apk**. Sube `versionName` y `versionCode` en cada versión para que se instale encima de la anterior.
