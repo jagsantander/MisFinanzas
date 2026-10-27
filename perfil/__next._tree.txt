@@ -1,6 +1,6 @@
-:HL["/MisFinanzas/_next/static/chunks/3ph4ox--_3rdv.css","style"]
+:HL["/MisFinanzas/_next/static/chunks/29-c7_c9kjk3v.css","style"]
 :HL["/MisFinanzas/_next/static/media/fba5a26ea33df6a3-s.p.18rizl4rsrl42.woff2","font",{"crossOrigin":"","type":"font/woff2"}]
 3:[["children",{"s":"__PAGE__","h":160}]]
 2:[["children",{"s":"perfil","h":96,"c":"$Q3"}]]
 1:[["children",{"s":"(app)","h":96,"c":"$Q2"}]]
-0:{"b":"mQyjMZnseAfQ-VGyeoW8d","t":{"t":{"s":"","h":80,"c":"$Q1"}}}
+0:{"b":"eO46YjDIRNRCTpkJ9daNR","t":{"t":{"s":"","h":80,"c":"$Q1"}}}
