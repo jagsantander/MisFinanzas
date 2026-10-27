@@ -145,6 +145,7 @@ h3 { margin: 0; }
 .field label, .label { font-weight: 650; font-size: 15px; }
 .field .hint { color: var(--muted); font-size: 13px; }
 .field .err { color: var(--danger); font-size: 14px; font-weight: 600; }
+.req { color: var(--danger); font-weight: 700; }
 .input, select.input, textarea.input { width: 100%; min-height: 52px; border: 1.5px solid var(--border); border-radius: 14px; padding: 12px 14px; background: var(--surface); font-size: 17px; }
 textarea.input { min-height: 96px; resize: vertical; }
 .input:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px var(--primary-soft); }

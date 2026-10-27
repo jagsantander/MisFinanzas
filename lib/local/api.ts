@@ -29,6 +29,9 @@ export type BudgetStatus = {
   limit: bigint; spent: bigint; available: bigint; excess: bigint; pctTenths: number; level: "ok" | "near" | "reached" | "exceeded"; isOverride: boolean; active: boolean;
 };
 
+/** Categorías y subcategorías siempre en orden alfabético (sin distinguir mayúsculas ni tildes). */
+const byName = (x: { name: string }, y: { name: string }) => x.name.localeCompare(y.name, "es", { sensitivity: "base" });
+
 function levelFor(spent: bigint, limit: bigint, thresholds: number[]): BudgetStatus["level"] {
   if (limit <= 0n) return spent > 0n ? "exceeded" : "ok";
   if (spent > limit) return "exceeded";
@@ -204,9 +207,9 @@ function route({ method, path, query, body }: Req): unknown {
         id: cat.id, name: cat.name, icon: cat.icon, color: cat.color, kind: cat.kind, archived: Boolean(cat.archivedAt),
         amount: map.get(cat.id) ?? 0n, previous: prevMap.get(cat.id) ?? 0n,
         budget: statuses.find((x) => x.scope === "category" && x.categoryId === cat.id) ?? null,
-        subs: cats.filter((x) => x.parentId === cat.id).map((x) => ({ id: x.id, name: x.name, amount: totals.bySubcategory.get(x.id) ?? 0n, budget: statuses.find((y) => y.scope === "subcategory" && y.subcategoryId === x.id) ?? null })),
+        subs: cats.filter((x) => x.parentId === cat.id).sort(byName).map((x) => ({ id: x.id, name: x.name, amount: totals.bySubcategory.get(x.id) ?? 0n, budget: statuses.find((y) => y.scope === "subcategory" && y.subcategoryId === x.id) ?? null })),
       });
-      const parents = cats.filter((x) => !x.parentId).sort((x, y) => x.sortOrder - y.sortOrder);
+      const parents = cats.filter((x) => !x.parentId).sort(byName);
       const assigned = [...totals.byCategory.entries()].filter(([id]) => parents.some((p) => p.id === id && p.kind === "expense")).reduce((acc, [, v]) => acc + v, 0n);
       const auto = getState().automation;
       const lr = auto?.lastRun;
@@ -229,7 +232,7 @@ function route({ method, path, query, body }: Req): unknown {
 
     case "categories": {
       if (!b) {
-        if (method === "GET") return { categories: T().categories.filter((x) => !x.deletedAt && (query.archived === "1" || !x.archivedAt)).sort((x, y) => x.sortOrder - y.sortOrder), icons: CATEGORY_ICONS };
+        if (method === "GET") return { categories: T().categories.filter((x) => !x.deletedAt && (query.archived === "1" || !x.archivedAt)).sort(byName), icons: CATEGORY_ICONS };
         const name = String(body.name ?? "").trim();
         if (name.length < 2 || name.length > 40) fail("El nombre debe tener entre 2 y 40 caracteres");
         if (!["expense", "income"].includes(body.kind)) fail("Tipo inválido");
@@ -448,19 +451,14 @@ function bulkReclassify(body: any) {
   return { ok: true, updated: willChange.length, skippedManual, ruleId };
 }
 
-/** Exporta la planilla (con los filtros aplicados) a CSV o Excel, o una copia completa en JSON. */
-export async function exportData(format: "csv" | "xlsx" | "json", filters: Filters = {}) {
-  const { downloadBlob, exportRows, toCsv, toXlsx } = await import("../export");
+/** Exporta los movimientos (con los filtros aplicados) a CSV, Excel o PDF. */
+export async function exportData(format: "csv" | "xlsx" | "pdf", filters: Filters = {}) {
+  const { downloadBlob, exportRows, toCsv, toPdf, toXlsx } = await import("../export");
   const stamp = new Date().toISOString().slice(0, 10);
-  if (format === "json") {
-    const { tables, settings } = getState();
-    const body = JSON.stringify({ format: "misfinanzas-backup", version: 2, exportedAt: nowIso(), settings, ...tables }, null, 2);
-    downloadBlob(body, "application/json", `misfinanzas-copia-${stamp}.json`);
-    return;
-  }
   const rows = filterMovements(filters).reverse();
   const cats = T().categories;
   const data = exportRows(rows, (id) => cats.find((c) => c.id === id)?.name ?? "");
-  if (format === "xlsx") downloadBlob(await toXlsx(data), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", `misfinanzas-movimientos-${stamp}.xlsx`);
+  if (format === "pdf") downloadBlob(await toPdf(data, `MiSaldo · movimientos al ${stamp}`), "application/pdf", `misaldo-movimientos-${stamp}.pdf`);
+  else if (format === "xlsx") downloadBlob(await toXlsx(data), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", `misfinanzas-movimientos-${stamp}.xlsx`);
   else downloadBlob(toCsv(data), "text/csv;charset=utf-8", `misfinanzas-movimientos-${stamp}.csv`);
 }

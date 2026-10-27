@@ -156,7 +156,7 @@ function SyncBanner() {
   return (
     <div className="page" style={{ paddingBottom: 0 }}>
       {!st.connection
-        ? <Notice tone="warn"><p className="small">Tus datos están solo en este dispositivo. <Link href="/conexiones">Conecta tu planilla</Link> para respaldarlos y activar la actualización nocturna.</p></Notice>
+        ? <Notice tone="warn"><p className="small">Tus datos están solo en este dispositivo. <Link href="/conexiones">Conecta tu planilla</Link> para respaldarlos y usarlos en otros dispositivos.</p></Notice>
         : <Notice tone="danger"><p className="small">No se pudo sincronizar con tu planilla: {st.syncError}. Tus cambios quedan guardados aquí y se enviarán al reconectar.</p></Notice>}
     </div>
   );

@@ -3,37 +3,26 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, ApiError, useApi, useStore } from "@/lib/client";
-import { saveSettings, script } from "@/lib/local/store";
+import { saveSettings } from "@/lib/local/store";
 import { Icon } from "@/components/Icon";
-import { Notice, useToast } from "@/components/ui";
+import { Notice } from "@/components/ui";
 import { SheetConnection } from "@/components/sheet";
-import { AiSetup, ClaudeAuthSteps, ClaudeSetup, ClaudeTaskSteps, GmailAccess, ModePicker, PrefsForm, ReviewInstruction } from "@/components/automation";
+import { DeviceAiSetup } from "@/components/automation";
 import { formatMoney, parseAmount } from "@/lib/money";
 
-const STEPS = ["preferences", "sheet", "mode", "ai", "period", "instruction", "first_sync", "budgets"] as const;
+const STEPS = ["preferences", "sheet", "ai", "budgets"] as const;
 type Step = (typeof STEPS)[number];
 const TITLES: Record<Step, string> = {
-  preferences: "Te damos la bienvenida", sheet: "Conecta tu planilla", mode: "¿Dónde corre la actualización nocturna?", ai: "Autoriza Gmail y tu IA",
-  period: "Período de importación inicial", instruction: "Revisa y autoriza tu actualización nocturna", first_sync: "Primera sincronización", budgets: "Presupuestos por categoría",
+  preferences: "Te damos la bienvenida", sheet: "Conecta tu planilla", ai: "Vincula tu IA Gemini", budgets: "Presupuestos por categoría",
 };
 
 export default function Welcome() {
   const router = useRouter();
   const st = useStore();
   const [step, setStep] = useState<Step>("preferences");
-  const a = st.automation;
   const finish = async () => { await saveSettings({ onboardingDone: true }).catch(() => {}); router.replace("/"); };
-  // Pasos que no aplican se saltan solos (sin planilla no hay nocturna; sin modalidad no hay IA).
-  const applies = (s: Step) => {
-    if (["mode", "ai", "period", "instruction", "first_sync"].includes(s)) {
-      if (!st.connection || !a) return false;
-      if (s !== "mode" && a.mode === "none") return false;
-    }
-    return true;
-  };
   const go = (dir: 1 | -1) => {
-    let i = STEPS.indexOf(step) + dir;
-    while (i >= 0 && i < STEPS.length && !applies(STEPS[i])) i += dir;
+    const i = STEPS.indexOf(step) + dir;
     if (i >= STEPS.length) return void finish();
     if (i >= 0) { setStep(STEPS[i]); window.scrollTo(0, 0); }
   };
@@ -57,13 +46,13 @@ export default function Welcome() {
               : <button className="btn block" onClick={() => go(1)}>Por ahora, guardar solo en este dispositivo</button>}
           </>
         )}
-        {step === "mode" && a && <><ModePicker a={a} /><button className="btn primary block" onClick={() => go(1)}>Continuar</button></>}
-        {step === "ai" && a && (a.mode === "google"
-          ? <><h2 className="section">Autoriza Gmail</h2><GmailAccess /><h2 className="section">Tu IA</h2><AiSetup a={a} />{a.hasAiKey && a.ai.model ? <button className="btn primary block" onClick={() => go(1)}>Continuar</button> : <p className="small muted">Guarda tu clave y elige un modelo para continuar.</p>}</>
-          : <><ClaudeAuthSteps /><ClaudeSetup a={a} />{a.prefs.claudeGmailAccount ? <button className="btn primary block" onClick={() => go(1)}>Continuar</button> : null}</>)}
-        {step === "period" && a && <><p>¿Desde cuándo importar en la primera sincronización? Después solo se buscan correos nuevos.</p><PrefsForm a={a} compact onSaved={() => go(1)} /></>}
-        {step === "instruction" && a && <ReviewInstruction a={a} onApproved={() => go(1)} onCancel={() => go(1)} />}
-        {step === "first_sync" && a && <FirstSync onNext={() => go(1)} />}
+        {step === "ai" && (
+          <>
+            <p>Opcional: con una clave gratuita de Gemini, MiSaldo lee fotos de boletas y cartolas del banco por ti.</p>
+            <DeviceAiSetup onSaved={() => go(1)} />
+            <button className="btn block" onClick={() => go(1)}>Más tarde</button>
+          </>
+        )}
         {step === "budgets" && <BudgetsStep onDone={finish} />}
       </div>
       {idx > 0 && <button className="link-btn" style={{ marginTop: 16 }} onClick={() => go(-1)}><Icon name="chevronLeft" size={16} /> Paso anterior</button>}
@@ -83,41 +72,6 @@ function PrefsStep({ onNext }: { onNext: () => void }) {
       <div className="field"><label htmlFor="c">Moneda principal</label><select id="c" className="input" value={currency} onChange={(e) => setCurrency(e.target.value)}><option value="CLP">Peso chileno · CLP ($1.650.000)</option><option value="USD">Dólar · USD</option><option value="EUR">Euro · EUR</option></select></div>
       <div className="field"><label htmlFor="t">Zona horaria</label><select id="t" className="input" value={tz} onChange={(e) => setTz(e.target.value)}>{["America/Santiago", "Pacific/Easter", "America/Punta_Arenas", "America/Argentina/Buenos_Aires", "America/Lima", "America/Bogota", "America/Mexico_City", "Europe/Madrid", "UTC"].map((z) => <option key={z}>{z}</option>)}</select></div>
       <button className="btn primary block" onClick={async () => { await saveSettings({ name: name.trim(), currency, timezone: tz }).catch(() => {}); onNext(); }}>Continuar</button>
-    </>
-  );
-}
-
-function FirstSync({ onNext }: { onNext: () => void }) {
-  const st = useStore();
-  const a = st.automation!;
-  const toast = useToast();
-  const [err, setErr] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState<string | null>(null);
-  if (!a.approved) return <><Notice><p>La actualización nocturna no quedó aprobada. Puedes hacerlo después en Perfil.</p></Notice><button className="btn primary block" onClick={onNext}>Continuar</button></>;
-  if (a.mode === "claude") return (
-    <>
-      <p>Ahora crea la tarea en tu cuenta de Claude con la instrucción aprobada:</p>
-      <ClaudeSetup a={a} />
-      <ClaudeTaskSteps a={a} />
-      <button className="btn primary block" onClick={onNext}>Ya la creé, continuar</button>
-    </>
-  );
-  return (
-    <>
-      <p>Puedes hacer ahora la primera importación. Corre en tu cuenta de Google y puede tardar unos minutos.</p>
-      {err && <Notice tone="danger"><p>{err}</p></Notice>}
-      {done ? <Notice tone="ok"><p>{done}</p></Notice> : (
-        <button className="btn primary block" disabled={busy} onClick={async () => {
-          setBusy(true); setErr(null);
-          try {
-            const r = await script<{ run: { movementsCreated: number; movementsReview: number } }>("runNow", {}, 360_000);
-            setDone(`Listo: ${r.run.movementsCreated} movimientos nuevos${r.run.movementsReview ? `, ${r.run.movementsReview} por revisar` : ""}.`);
-            toast({ text: "Primera sincronización completada" });
-          } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
-        }}><Icon name="refresh" /> {busy ? "Importando… (no cierres esta pantalla)" : "Sincronizar ahora"}</button>
-      )}
-      <button className="btn block" onClick={onNext}>{done ? "Continuar" : "Más tarde"}</button>
     </>
   );
 }

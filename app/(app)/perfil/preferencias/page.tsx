@@ -15,14 +15,18 @@ export default function Preferences() {
   const [p, setP] = useState<any>(null);
   const [err, setErr] = useState<string | null>(null);
   const [theme, setTheme] = useState(localTheme);
+  const [nearText, setNearText] = useState("");
+  useEffect(() => { if (me && !p) setNearText(String(me.user.budgetThresholds.find((t: number) => t < 100) ?? 80)); }, [me, p]);
   useEffect(() => { if (me && !p) setP({ name: me.user.name, currency: me.user.currency, timezone: me.user.timezone, monthStartDay: me.user.monthStartDay, budgetThresholds: me.user.budgetThresholds }); }, [me, p]);
   if (!me || !p) return <main className="page"><Loading /></main>;
   async function save() {
     setErr(null);
+    const t = Number(nearText);
+    if (!Number.isInteger(t) || t < 1 || t > 99) { setErr("El aviso de proximidad debe ser un número entero entre 1 y 99"); return; }
+    p.budgetThresholds = [t, 100];
     try { await api("/api/me", { method: "PATCH", body: p }); toast({ text: "Preferencias guardadas" }); reload(); }
     catch (e) { setErr((e as ApiError).message); }
   }
-  const near = p.budgetThresholds.filter((t: number) => t < 100);
   return (
     <main className="page">
       <BackLink href="/perfil" label="Perfil" />
@@ -37,9 +41,13 @@ export default function Preferences() {
         <fieldset className="field" style={{ border: 0, padding: 0 }}><legend className="label">Apariencia</legend>
           <div className="segmented">{([["light", "Claro"], ["dark", "Oscuro"], ["system", "Sistema"]] as const).map(([k, v]) => <button key={k} type="button" aria-pressed={theme === k} onClick={() => { setTheme(k); applyTheme(k); }}>{v}</button>)}</div>
           <span className="hint">Se aplica al instante y solo en este dispositivo.</span></fieldset>
-        <div className="field"><label htmlFor="th">Aviso de proximidad al límite</label>
-          <select id="th" className="input" value={near[0] ?? 80} onChange={(e) => setP({ ...p, budgetThresholds: [Number(e.target.value), 100] })}>{[50, 60, 70, 75, 80, 85, 90, 95].map((t) => <option key={t} value={t}>{t}%</option>)}</select>
-          <span className="hint">También se avisa al llegar al 100% y al superar el límite.</span></div>
+        <div className="field"><label htmlFor="th">Aviso de proximidad al límite (%)</label>
+          <div className="row" style={{ gap: 8 }}>
+            <input id="th" className="input" inputMode="numeric" maxLength={2} style={{ maxWidth: 110 }} value={nearText} onChange={(e) => setNearText(e.target.value.replace(/\D/g, ""))} aria-describedby="th-h" />
+            <span style={{ fontWeight: 700 }}>%</span>
+          </div>
+          <div className="chips" style={{ marginTop: 6 }}>{[50, 70, 80, 90].map((t) => <button key={t} type="button" className="chip" aria-pressed={nearText === String(t)} onClick={() => setNearText(String(t))}>{t}%</button>)}</div>
+          <span id="th-h" className="hint">Escribe cualquier valor entre 1 y 99, o elige uno. También se avisa al llegar al 100% y al superar el límite.</span></div>
         {err && <Notice tone="danger"><p>{err}</p></Notice>}
         <button className="btn primary block" onClick={save}>Guardar</button>
       </div>

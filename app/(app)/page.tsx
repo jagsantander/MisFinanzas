@@ -8,7 +8,6 @@ import { Empty, ErrorState, Loading, Money, Notice, LEVEL, pctText } from "@/com
 import { PeriodPicker, shiftKey } from "@/components/PeriodPicker";
 import { CategoryRows, type CatRow } from "@/components/CategoryRows";
 import { MovementItem, type Cat, type Mv } from "@/components/MovementItem";
-import { AutomationStatus } from "@/components/AutomationStatus";
 
 type Dash = {
   period: { key: string; start: string; end: string; label: string }; daysRemaining: number;
@@ -50,12 +49,13 @@ export default function Home() {
       <div style={{ marginTop: 16 }}>
         {loading && !data ? <Loading rows={3} height={110} /> : error ? <ErrorState error={error} retry={reload} /> : data && (
           <div className="stack">
-            <section className="hero" aria-label="Saldo del mes">
+            <Link href="/resumen" className="hero" aria-label="Saldo del mes: ver resumen" style={{ display: "block", color: "inherit", textDecoration: "none" }}>
               <div style={{ fontWeight: 650 }}>Saldo del mes</div>
               <div className="big tabular"><Money minor={data.totals.balance} currency={cur} className="" /></div>
               <div className="muted small">Ingresos menos gastos del período. No es el saldo de tu cuenta bancaria.</div>
+              <div className="small" style={{ fontWeight: 700, marginTop: 6 }}>Ver resumen con gráfico <Icon name="chevronRight" size={14} /></div>
               <svg viewBox="0 0 120 40" width="110" style={{ position: "absolute", right: 14, top: 12, opacity: .6 }} aria-hidden><path d="M2 34 C 20 20, 30 30, 45 26 S 70 12, 85 18 S 105 6, 118 4" fill="none" stroke="#bff1e8" strokeWidth="2.5" strokeLinecap="round" /><circle cx="118" cy="4" r="3.5" fill="#fff" /></svg>
-            </section>
+            </Link>
             <div className="grid2">
               <div className="card pad row" style={{ gap: 10 }}>
                 <span className="ico" style={{ background: "var(--income-soft)", color: "var(--income)" }}><Icon name="down" /></span>
@@ -70,11 +70,9 @@ export default function Home() {
               {Object.keys(data.totals.otherCurrencies).length > 0 && <> Además hay movimientos en {Object.keys(data.totals.otherCurrencies).join(", ")} que no se convierten ni se suman.</>}
             </div>
 
-            <AutomationStatus a={data.automation} />
-
             {data.reviewCount > 0 && (
               <Link href="/movimientos?revision=pendiente" className="notice warn" style={{ color: "var(--text)" }}>
-                <Icon name="alert" /><div className="grow"><strong>{data.reviewCount} movimientos por revisar</strong><p className="small">Revisa los casos dudosos detectados en tus correos.</p></div><Icon name="chevronRight" />
+                <Icon name="alert" /><div className="grow"><strong>{data.reviewCount} movimientos por revisar</strong><p className="small">Revisa los movimientos dudosos que llegaron solos.</p></div><Icon name="chevronRight" />
               </Link>
             )}
 
@@ -103,13 +101,13 @@ export default function Home() {
               const total = BigInt(tab === "expense" ? data.totals.expense : data.totals.income);
               const has = rows.some((r) => BigInt(r.amount) !== 0n || r.budget?.active);
               return has ? <CategoryRows rows={rows} currency={cur} total={total} periodQuery={pq} kind={tab} />
-                : <Empty icon="pie" title={tab === "expense" ? "Sin gastos este mes" : "Sin ingresos este mes"}><p>Agrega un movimiento o sincroniza tu correo.</p></Empty>;
+                : <Empty icon="pie" title={tab === "expense" ? "Sin gastos este mes" : "Sin ingresos este mes"}><p>Agrega un movimiento para verlo aquí.</p></Empty>;
             })()}
             {tab === "expense" && BigInt(data.uncategorizedExpense) > 0n && <Notice><p className="small">Hay <Money minor={data.uncategorizedExpense} currency={cur} className="" /> en gastos sin categoría. <Link href={`/movimientos?type=gastos&${pq}`}>Clasificar</Link></p></Notice>}
 
             <h2 className="section">Últimos movimientos <Link href="/movimientos" className="small">Ver todos</Link></h2>
             {data.latest.length ? <div className="list">{data.latest.map((m) => <MovementItem key={m.id} m={m} cats={cats.data?.categories ?? []} />)}</div>
-              : <Empty icon="list" title="Aún no hay movimientos"><p>Registra uno manualmente o conecta tu correo.</p></Empty>}
+              : <Empty icon="list" title="Aún no hay movimientos"><p>Registra uno con el botón «Agregar movimiento».</p></Empty>}
           </div>
         )}
       </div>

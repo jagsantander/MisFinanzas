@@ -78,7 +78,7 @@ function MovementsInner() {
         )}
         {loading && !data ? <Loading rows={5} /> : error ? <ErrorState error={error} retry={reload} /> : data && (data.movements.length === 0 ? (
           <Empty icon="list" title={params.toString() ? "Sin resultados" : "Aún no hay movimientos"}>
-            <p>{params.toString() ? "Prueba con otros filtros." : "Agrega un movimiento o conecta tu correo para importarlos."}</p>
+            <p>{params.toString() ? "Prueba con otros filtros." : "Agrega un movimiento para verlo aquí."}</p>
             {params.toString() && <button className="btn sm" onClick={() => router.replace("/movimientos")}>Limpiar filtros</button>}
           </Empty>
         ) : (
@@ -119,6 +119,7 @@ function MovementsInner() {
         <div className="row" style={{ flexWrap: "wrap" }}>
           <button className="btn sm" onClick={() => exportData("xlsx", Object.fromEntries(params))}><Icon name="download" size={18} /> Excel</button>
           <button className="btn sm" onClick={() => exportData("csv", Object.fromEntries(params))}><Icon name="download" size={18} /> CSV</button>
+          <button className="btn sm" onClick={() => exportData("pdf", Object.fromEntries(params))}><Icon name="download" size={18} /> PDF</button>
           <Link className="btn sm ghost" href="/movimientos?deleted=1">Ver eliminados</Link>
         </div>
       </div>

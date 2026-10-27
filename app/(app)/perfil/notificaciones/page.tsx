@@ -2,7 +2,6 @@
 import { useState } from "react";
 import { useStore } from "@/lib/client";
 import { saveSettings } from "@/lib/local/store";
-import { isScript } from "@/lib/local/types";
 import { BackLink } from "@/components/BackLink";
 import { Notice, Switch, useToast } from "@/components/ui";
 
@@ -17,21 +16,17 @@ export default function NotificationPrefs() {
       <h1 className="title">Avisos</h1>
       <div className="list" style={{ marginTop: 12 }}>
         <div className="item" style={{ cursor: "default" }}><div className="grow"><div className="t">Dentro de la app</div><div className="s">Siempre activo, con historial en Notificaciones.</div></div><Switch checked disabled label="Dentro de la app" onChange={() => {}} /></div>
-        <div className="item" style={{ cursor: "default" }}><div className="grow"><div className="t">Correo electrónico</div><div className="s">{isScript(st.connection) ? `El script de tu planilla te escribe a ${st.account ?? "tu cuenta de Google"}.` : "Requiere el script de tu planilla (Actualización nocturna)."}</div></div>
-          <Switch checked={p.notifyEmail} disabled={!isScript(st.connection)} label="Correo" onChange={(v) => setP({ ...p, notifyEmail: v })} /></div>
       </div>
-      <Notice><p className="small">Las notificaciones push del teléfono requieren un servidor que las envíe, y MiSaldo funciona sin servidor. Por eso los avisos llegan por correo y dentro de la app.</p></Notice>
       <h2 className="section">Horario de silencio</h2>
       <div className="card pad">
         <div className="grid2">
           <div className="field"><label htmlFor="qs">Desde</label><input id="qs" type="time" className="input" value={p.quietStart} onChange={(e) => setP({ ...p, quietStart: e.target.value })} /></div>
           <div className="field"><label htmlFor="qe">Hasta</label><input id="qe" type="time" className="input" value={p.quietEnd} onChange={(e) => setP({ ...p, quietEnd: e.target.value })} /></div>
         </div>
-        <p className="small muted">Los avisos de la actualización nocturna quedan registrados en la app y el correo se envía al terminar el silencio.</p>
         {err && <Notice tone="danger"><p>{err}</p></Notice>}
         <button className="btn primary block" onClick={async () => { setErr(null); try { await saveSettings(p); toast({ text: "Avisos guardados" }); } catch (e) { setErr((e as Error).message); } }}>Guardar</button>
       </div>
-      <p className="small muted" style={{ marginTop: 12 }}>Las alertas de presupuesto se basan en los correos detectados al sincronizar: no son alertas bancarias en tiempo real.</p>
+      <p className="small muted" style={{ marginTop: 12 }}>Las alertas de presupuesto se basan en los movimientos registrados: no son alertas bancarias en tiempo real.</p>
     </main>
   );
 }

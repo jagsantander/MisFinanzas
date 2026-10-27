@@ -40,6 +40,23 @@ export async function toXlsx(rows: (string | number)[][]): Promise<ArrayBuffer> 
   return (await wb.xlsx.writeBuffer()) as ArrayBuffer;
 }
 
+/** PDF horizontal con una tabla de movimientos y los totales del período exportado. */
+export async function toPdf(rows: (string | number)[][], title: string): Promise<ArrayBuffer> {
+  const { jsPDF } = await import("jspdf");
+  const { autoTable } = await import("jspdf-autotable");
+  const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+  doc.setFontSize(16);
+  doc.text(title, 40, 40);
+  // Fecha, Tipo, Monto, Moneda, Descripción, Categoría, Subcategoría, Notas
+  const cols = [0, 2, 4, 5, 6, 10, 11, 15];
+  autoTable(doc, {
+    startY: 56, head: [cols.map((i) => EXPORT_HEADERS[i])], body: rows.map((r) => cols.map((i) => String(r[i] ?? ""))),
+    styles: { fontSize: 8, cellPadding: 3, overflow: "linebreak" }, headStyles: { fillColor: [15, 125, 112] },
+    columnStyles: { 2: { halign: "right" }, 4: { cellWidth: 200 }, 7: { cellWidth: 140 } },
+  });
+  return doc.output("arraybuffer");
+}
+
 /** Descarga un archivo generado en el navegador. */
 export function downloadBlob(data: BlobPart, type: string, filename: string) {
   const url = URL.createObjectURL(new Blob([data], { type }));

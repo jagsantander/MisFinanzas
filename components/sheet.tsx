@@ -42,11 +42,11 @@ export function ScriptUpdateSteps() {
 function PermissionsNote() {
   return (
     <div className="card pad" style={{ marginTop: 8 }}>Como el script es tuyo y no está publicado, Google muestra «Google no verificó esta app»: pulsa <em>Configuración avanzada → Ir a MiSaldo → Permitir</em>.
-      Entre los permisos aparece «Ver tus mensajes de correo electrónico y la configuración»: es <strong>solo lectura</strong> y lo usa únicamente tu script, en tu cuenta. Los demás: ver esta planilla, conectarse a tu IA, crear el disparador nocturno y enviarte avisos. Puedes revocarlos en <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">myaccount.google.com/permissions</a>.</div>
+      Los permisos los usa únicamente tu script, en tu cuenta. Puedes revocarlos en <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">myaccount.google.com/permissions</a>.</div>
   );
 }
 
-/** Para quien conectó con Google: agregar el script a SU misma planilla (solo para la lectura nocturna de Gmail). */
+/** Para quien conectó con Google: agregar el script a SU misma planilla. */
 export function AddScriptSteps({ sheetUrl }: { sheetUrl: string }) {
   return (
     <ol className="stack small" style={{ paddingLeft: 20, margin: 0, gap: 10 }}>
@@ -63,7 +63,7 @@ export function AddScriptSteps({ sheetUrl }: { sheetUrl: string }) {
 export function TemplateSteps() {
   return (
     <ol className="stack small" style={{ paddingLeft: 20, margin: 0, gap: 10 }}>
-      <li>Pulsa <strong>Crear mi planilla</strong> y luego <strong>Hacer una copia</strong>. Usa la cuenta de Google donde llegan los avisos de tu banco.</li>
+      <li>Pulsa <strong>Crear mi planilla</strong> y luego <strong>Hacer una copia</strong>. Usa tu cuenta de Google.</li>
       <li>En tu copia abre el menú <strong>MiSaldo → Conectar con la app</strong> (si no aparece, recarga la página) y acepta los permisos.<PermissionsNote /></li>
       <li>Solo la primera vez, la planilla te mostrará cómo publicar tu script como aplicación web (unos 4 clics). Hazlo y vuelve a usar <strong>MiSaldo → Conectar con la app</strong>.</li>
       <li>Pulsa <strong>Abrir MiSaldo y conectar</strong>. La app se conecta sola.</li>
@@ -177,17 +177,13 @@ export function SheetConnection() {
           <span className={`badge ${st.syncError ? "danger" : st.pending.length ? "warn" : "ok"}`}>{st.syncing ? "Sincronizando…" : st.syncError ? "Con error" : st.pending.length ? `${st.pending.length} por enviar` : "Al día"}</span>
         </div>
         <div className="small muted">Última sincronización: {st.lastSyncAt ? fmtDateTime(st.lastSyncAt) : "aún no"}</div>
-        {st.automation && !st.automation.bankDomains && (
-          <Notice tone="warn"><p className="small"><strong>Actualiza el script de tu planilla.</strong> Es de una versión anterior: sin actualizarlo no podrás leer boletas, elegir bancos ni probar el acceso a Gmail.</p>
-            <ScriptUpdateSteps /></Notice>
-        )}
         {st.syncError && <Notice tone="danger"><p className="small">{st.syncError}</p></Notice>}
         <div className="row" style={{ flexWrap: "wrap" }}>
           <button className="btn sm primary" disabled={st.syncing} onClick={async () => { await sync(); if (!getErr()) toast({ text: "Sincronizado" }); }}><Icon name="refresh" size={16} /> Sincronizar ahora</button>
           <button className="btn sm danger" onClick={() => setConfirm(true)}>Desconectar</button>
         </div>
         <ConfirmSheet open={confirm} onClose={() => setConfirm(false)} danger title="¿Desconectar la planilla?" confirmLabel="Desconectar"
-          body={<><p>Este dispositivo deja de enviar y recibir datos. <strong>La planilla y la actualización nocturna no se borran</strong>: siguen en tu cuenta de Google.</p><p>Para detener la actualización nocturna, páusala o cancélala antes en «Actualización nocturna».</p></>}
+          body={<p>Este dispositivo deja de enviar y recibir datos. <strong>La planilla no se borra</strong>: sigue en tu cuenta de Google.</p>}
           onConfirm={() => { disconnect(); setConfirm(false); toast({ text: "Planilla desconectada" }); }} />
       </div>
     );

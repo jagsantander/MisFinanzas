@@ -3,8 +3,6 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { api, ApiError, KIND_LABEL, useApi, useStore } from "@/lib/client";
-import { script } from "@/lib/local/store";
-import { isScript, type ReceiptScan } from "@/lib/local/types";
 import { getDeviceAi, scanReceiptOnDevice, type DeviceAi } from "@/lib/ai/receipt";
 import { CategoryPicker } from "@/components/CategoryPicker";
 import { Notice } from "@/components/ui";
@@ -30,6 +28,14 @@ async function shrinkPhoto(file: File): Promise<string> {
   }
 }
 
+/** Archivo completo en base64 sin encabezado (para PDF). */
+async function fileBase64(file: File): Promise<string> {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
 
 export default function NewMovement() {
@@ -43,11 +49,12 @@ export default function NewMovement() {
   const [busy, setBusy] = useState(false);
   const st = useStore();
   const photo = useRef<HTMLInputElement>(null);
+  const attach = useRef<HTMLInputElement>(null);
+  const [tried, setTried] = useState(false);
   const [scan, setScan] = useState<{ busy: boolean; error: string | null; warnings: string[]; done?: boolean }>({ busy: false, error: null, warnings: [] });
   const [deviceAi, setDeviceAi] = useState<DeviceAi | null>(null);
   useEffect(() => { getDeviceAi().then((x) => setDeviceAi(x ?? null)); }, []);
-  const scriptAi = Boolean(isScript(st.connection) && st.automation?.hasAiKey && st.automation.ai.model);
-  const canScan = scriptAi || Boolean(deviceAi);
+  const canScan = Boolean(deviceAi);
   const cur = me?.user.currency ?? "CLP";
   const [pasted, setPasted] = useState("");
   const [pasteMsg, setPasteMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -65,10 +72,10 @@ export default function NewMovement() {
     if (!file) return;
     setScan({ busy: true, error: null, warnings: [] });
     try {
-      const image = await shrinkPhoto(file);
-      const r = scriptAi
-        ? (await script<{ receipt: ReceiptScan }>("scanReceipt", { image, mimeType: "image/jpeg" }, 90_000)).receipt
-        : await scanReceiptOnDevice(deviceAi!, image, st.settings, st.tables.categories);
+      const pdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+      if (pdf && file.size > 15 * 1024 * 1024) throw new Error("El PDF pesa más de 15 MB");
+      const image = pdf ? await fileBase64(file) : await shrinkPhoto(file);
+      const r = await scanReceiptOnDevice(deviceAi!, image, st.settings, st.tables.categories, pdf ? "application/pdf" : "image/jpeg");
       const warnings = [...r.warnings];
       if (r.currency !== cur) warnings.push(`La boleta está en ${r.currency}; el monto se dejó en blanco porque tu moneda es ${cur}.`);
       setKind("expense");
@@ -80,19 +87,27 @@ export default function NewMovement() {
       setCat({ c: r.categoryId, s: r.subcategoryId });
       setScan({ busy: false, error: null, warnings, done: true });
     } catch (e) {
-      const msg = (e as Error).message;
-      setScan({ busy: false, error: /Acción desconocida/.test(msg) ? "El script de tu planilla es de una versión anterior. Actualízalo en Perfil → Tu planilla para leer boletas." : msg, warnings: [] });
+      setScan({ busy: false, error: (e as Error).message, warnings: [] });
     } finally {
       if (photo.current) photo.current.value = "";
+      if (attach.current) attach.current.value = "";
     }
   }
   const parsed = f.amount ? parseAmount(f.amount, cur) : null;
 
+  // La descripción es opcional: si queda vacía se usa el comercio o la categoría elegida.
+  const autoDescription = () => {
+    const name = (id: string | null) => cats.data?.categories.find((c) => c.id === id)?.name;
+    return f.merchant.trim() || name(cat.s) || name(cat.c) || KIND_LABEL[kind];
+  };
+
   async function save(e: React.FormEvent) {
     e.preventDefault();
+    setTried(true);
+    if (!parsed) return;
     setBusy(true); setError(null);
     try {
-      await api("/api/movements", { body: { kind, ...f, currency: cur, occurredTime: f.occurredTime || null, merchant: f.merchant || null, accountMask: f.accountMask || null, notes: f.notes || null, categoryId: cat.c, subcategoryId: cat.s } });
+      await api("/api/movements", { body: { kind, ...f, description: f.description.trim() || autoDescription(), currency: cur, occurredTime: f.occurredTime || null, merchant: f.merchant || null, accountMask: f.accountMask || null, notes: f.notes || null, categoryId: cat.c, subcategoryId: cat.s } });
       router.push("/movimientos");
     } catch (err) { setError((err as ApiError).message); setBusy(false); }
   }
@@ -102,11 +117,14 @@ export default function NewMovement() {
       <h1 className="title">Agregar movimiento</h1>
       <section className="card pad stack" style={{ marginTop: 12 }}>
         <input ref={photo} type="file" accept="image/*" capture="environment" hidden onChange={(e) => readReceipt(e.target.files?.[0])} />
-        <button type="button" className="btn block" disabled={!canScan || scan.busy} onClick={() => photo.current?.click()}>
-          <Icon name="camera" size={18} /> {scan.busy ? "Leyendo la boleta…" : "Fotografiar boleta"}
-        </button>
-        {!canScan && <p className="small muted" style={{ margin: 0 }}>Para leer boletas con IA, <Link href="/automatizacion#ia">agrega tu clave de Gemini</Link>. Es gratis y toma un minuto.</p>}
-        {canScan && !scan.busy && !scan.done && !scan.error && <p className="small muted" style={{ margin: 0 }}>La foto se analiza con tu IA y no se guarda. Revisa los datos antes de guardar.</p>}
+        <input ref={attach} type="file" accept="image/*,application/pdf" hidden onChange={(e) => readReceipt(e.target.files?.[0])} />
+        <div className="grid2">
+          <button type="button" className="btn" disabled={!canScan || scan.busy} onClick={() => photo.current?.click()}><Icon name="camera" size={18} /> Sacar foto</button>
+          <button type="button" className="btn" disabled={!canScan || scan.busy} onClick={() => attach.current?.click()}><Icon name="upload" size={18} /> Adjuntar foto</button>
+        </div>
+        {scan.busy && <p className="small muted" style={{ margin: 0 }}>Leyendo la boleta…</p>}
+        {!canScan && <p className="small muted" style={{ margin: 0 }}>Para leer boletas, <Link href="/automatizacion">vincula tu IA Gemini</Link>. Es gratis y toma un minuto.</p>}
+        {canScan && !scan.busy && !scan.done && !scan.error && <p className="small muted" style={{ margin: 0 }}>Saca una foto de la boleta o elige una de tu galería (también PDF). Se analiza con tu IA y no se guarda.</p>}
         {scan.done && !scan.warnings.length && <Notice tone="ok"><p className="small">Datos leídos de la boleta. Revísalos y guarda.</p></Notice>}
         {scan.error && <Notice tone="danger"><p className="small">{scan.error}</p></Notice>}
         {scan.warnings.length > 0 && <Notice tone="warn"><p className="small">Datos leídos de la boleta. Revisa: {scan.warnings.join(" · ")}</p></Notice>}
@@ -123,12 +141,16 @@ export default function NewMovement() {
         <div className="segmented" role="radiogroup" aria-label="Tipo" style={{ marginBottom: 16 }}>
           {["expense", "income"].map((k) => <button type="button" key={k} role="radio" aria-checked={kind === k} aria-pressed={kind === k} onClick={() => { setKind(k); setCat({ c: null, s: null }); }}>{KIND_LABEL[k]}</button>)}
         </div>
+        <p className="small muted" style={{ margin: "0 0 8px" }}>Los campos con <span className="req">*</span> son obligatorios.</p>
         <div className="field">
-          <label htmlFor="amt">Monto ({cur})</label>
-          <input id="amt" className={`input money ${kind === "income" ? "income" : "expense"}`} inputMode="decimal" placeholder="$0" autoFocus value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} aria-describedby="amt-h" />
-          <span id="amt-h" className="hint" style={{ textAlign: "center" }}>{parsed ? formatMoney(parsed, cur) : "Ejemplo: 62.500"}</span>
+          <label htmlFor="amt">Monto ({cur}) <span className="req">*</span></label>
+          <input id="amt" className={`input money ${kind === "income" ? "income" : "expense"}`} inputMode="decimal" placeholder="$0" autoFocus value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} aria-describedby="amt-h" aria-invalid={tried && !parsed ? true : undefined} aria-required />
+          {tried && !parsed
+            ? <span id="amt-h" className="err" role="alert" style={{ textAlign: "center" }}>{f.amount ? "Escribe un monto válido, por ejemplo 62.500" : "Escribe el monto"}</span>
+            : <span id="amt-h" className="hint" style={{ textAlign: "center" }}>{parsed ? formatMoney(parsed, cur) : "Ejemplo: 62.500"}</span>}
         </div>
-        <div className="field"><label htmlFor="desc">Descripción</label><input id="desc" className="input" required maxLength={300} value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} placeholder={kind === "expense" ? "Supermercado" : "Sueldo"} /></div>
+        <div className="field"><label htmlFor="desc">Descripción (opcional)</label><input id="desc" className="input" maxLength={300} value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} placeholder={kind === "expense" ? "Supermercado" : "Sueldo"} aria-describedby="desc-h" />
+          <span id="desc-h" className="hint">Si la dejas vacía, usamos {f.merchant.trim() || cat.c ? `«${autoDescription()}»` : "el nombre de la categoría"}.</span></div>
         {cats.data && <CategoryPicker cats={cats.data.categories} kind={kind as "expense" | "income"} categoryId={cat.c} subcategoryId={cat.s} onChange={(c, s) => setCat({ c, s })} />}
         <div className="grid2">
           <div className="field"><label htmlFor="date">Fecha</label><input id="date" type="date" className="input" value={f.occurredOn} onChange={(e) => setF({ ...f, occurredOn: e.target.value })} /></div>
@@ -140,7 +162,8 @@ export default function NewMovement() {
           <div className="field"><label htmlFor="notes">Notas</label><textarea id="notes" className="input" value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} /></div>
         </details>
         {error && <Notice tone="danger"><p>{error}</p></Notice>}
-        <button className="btn primary block" style={{ marginTop: 16 }} disabled={busy || !parsed || !f.description}>{busy ? "Guardando…" : "Guardar movimiento"}</button>
+        {tried && !parsed && <Notice tone="danger"><p className="small">Falta el monto: es el único dato obligatorio.</p></Notice>}
+        <button className="btn primary block" style={{ marginTop: 16 }} disabled={busy}>{busy ? "Guardando…" : "Guardar movimiento"}</button>
       </form>
     </main>
   );
